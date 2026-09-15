@@ -103,15 +103,38 @@ Use `decimal.Decimal` from `github.com/shopspring/decimal v1.4.0` for calculatio
 
 Preserve the original Market Data values in the source data returned to clients. Keep missing optional values distinct from zero.
 
-Return calculated decimal values as strings using these output rules:
+**Intermediate calculations**
 
-- Use up to 8 significant digits for values other than percentages. Significant digits are counted from the first nonzero digit, so small values do not become zero just because they have many leading decimal zeros.
+Perform addition, subtraction, and multiplication without extra rounding. Round the result of each division to 16 significant digits. Count significant digits from the first nonzero digit, regardless of the decimal point position.
+
+Use `DivRound` with an explicitly calculated number of decimal places to provide this precision. Do not change global library settings.
+
+Further calculations and comparisons use intermediate values, not values rounded for the client response.
+
+**Rounding rule**
+
+Round to the nearest value. If the value is exactly halfway between two rounding choices, round away from zero.
+
+For example, rounding to two decimal places gives:
+
+- `1.234` → `1.23`.
+- `1.236` → `1.24`.
+- `1.235` → `1.24`.
+- `-1.235` → `-1.24`.
+
+Apply this rule both to intermediate division and to response formatting.
+
+**Response precision**
+
+Return calculated decimal values as strings:
+
+- Use up to 8 significant digits for values other than percentages.
 - Use up to 6 decimal places for percentage values.
 - Remove unnecessary trailing zeros: `2.500000` becomes `2.5`.
 
-For example, `11 / 3` is returned as `3.6666667` under the significant-digit rule. A small value such as `0.0000000012345678` keeps its 8 significant digits.
+For example, `11 / 3` is represented as `3.666666666666667` during calculation and returned as `3.6666667`. A small value such as `0.0000000012345678` keeps all 8 significant digits.
 
-Keep extra precision in intermediate calculations and apply the output rounding only when preparing the response. Define internal division precision and rounding tie rules before implementation. The same inputs and parameters must produce consistent results. These output rules do not change the original source data returned to clients.
+The same inputs and parameters must produce the same result. Tests for each algorithm must check numerical error over long histories and behavior near rounding boundaries.
 
 ### ATR and NATR
 
