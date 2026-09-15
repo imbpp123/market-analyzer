@@ -69,15 +69,33 @@ Analyzer does not cache data or results and does not apply rate limits. Request 
 
 ### Candle selection
 
-Set `to` to the start of the interval containing `evaluated_at`. Step backward by the required number of candle slots to obtain `from`.
+For candle-based calculations, the client provides these required parameters:
 
-Proposed v1 behavior uses closed candles only. The current open candle is excluded even if it closes while the request is running. There is no caller-supplied historical end time in v1. For example, at `12:03:20 UTC`, a `1m` request ends at `12:03:00` and the last candle opens at `12:02:00`.
+- `to`: the point in time for the analysis.
+- `candle_count`: the number of source candles.
+- `interval`: the candle timeframe.
 
-Use Market Data calendar rules: days start at UTC midnight, weeks on Monday, and months on the first day. A month is not 30 days. Binance `3d` slots use the `1970-01-02T00:00:00Z` anchor. Support exactly the interval and exchange/market combinations described in the pinned client guide; do not invent aliases or normalize symbols.
+Analyzer selects the last candle that closed at or before `to` and counts backward for `candle_count` candles, including that last candle. A candle that was still open at `to` is excluded.
 
-The last selected candle close is the reference price.
+For example:
 
-The default upstream request and retention bounds are 1000 slots. Additional history counts toward them. Analyzer neither truncates depths nor splits requests to hide an upstream rejection. These are dependency restrictions, not a new Analyzer quota.
+```text
+to:           2026-09-15 14:02:30 UTC
+candle_count: 60
+interval:     1m
+```
+
+This selects 60 candles with opening times from `13:02` through `14:01`, inclusive. The last candle closed at `14:02`. The request to Market Data uses the range `[13:02, 14:02)`.
+
+The client can set `to` to the current time or a historical time. Keep the requested `to` separate from the calculated end boundary of the candle range.
+
+Candle boundaries follow the Market Data calendar in UTC. Daily candles start at midnight, weekly candles on Monday, and monthly candles on the first day of each calendar month. Other intervals also follow Market Data rules.
+
+The `candle_count` is the total number of input candles, including any additional history needed by the algorithm. Analyzer does not add candles beyond this count. The indicator period and other calculation parameters are provided separately.
+
+If Market Data cannot provide the full requested range, Analyzer returns an error. It does not shorten the range, fill missing candles, or split the request to bypass Market Data limits. By default, Market Data limits both the request size and available history depth to 1000 candle slots.
+
+Rules for using prices from the selected candles, including the choice of reference price, are defined separately for each calculation.
 
 ### Numerical rules
 
