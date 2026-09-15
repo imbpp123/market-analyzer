@@ -38,11 +38,13 @@ Calculations may reuse other calculations, such as ATR or NATR for level detecti
 
 ## Proposed Solution
 
-### Language and boundaries
+### Programming Language
 
 Use Go with Protobuf and `grpc-go`. The existing Market Data Go client removes the need to build another upstream client. The workload needs ordinary numerical calculations and request orchestration; Python adds no required capability here. gRPC supports generated Go clients and servers from a shared schema; see the [official Go tutorial](https://grpc.io/docs/languages/go/basics/).
 
-Pin the Market Data client and code generators to reviewed versions. The reviewed client module declares Go `1.27.1`; verify the build environment against that requirement before implementation. Do not silently change the upstream module.
+Pin the Market Data client and code generators to reviewed versions. The reviewed client module declares Go `1.27.1`; verify the build environment against that requirement before implementation.
+
+### Boundaries
 
 Keep four responsibilities separate:
 
@@ -55,20 +57,25 @@ Keep four responsibilities separate:
 
 Domain and application code do not import generated Protobuf types, gRPC, or observability packages. Inject a clock and the candle reader. Reuse the upstream gRPC channel; a channel is not a data cache.
 
-### Request flow and candle selection
+### Request flow
 
-1. Validate the request and capture UTC `evaluated_at` once.
-2. Set `to` to the start of the interval containing `evaluated_at`.
-3. Step backward by the required number of candle slots to obtain `from`.
-4. Call `GetKlines` once for the complete `[from, to)` range.
-5. Validate the returned identity, calendar, completeness, and candle values.
-6. Calculate the selected result and return it with the source candles.
+1. **Validate the request.** Check required parameters, types, allowed values, and parameter compatibility for the selected calculation. Return an error before calling Market Data if validation fails. Do not check actual data completeness or sufficiency at this stage.
+2. **Get data from Market Data.** Request the data needed for the selected calculation over gRPC. Return an error if the full required data cannot be obtained.
+3. **Validate the received data.** Check that the data matches the requested instrument, time range, timeframe, and other applicable parameters. Check that the data is valid, complete, and sufficient for the calculation. Return an error if any check fails.
+4. **Run the calculation.** Calculate the result using the received data and request parameters.
+5. **Return the response.** Return the analysis result and all source data from Market Data used in the calculation to the client over gRPC.
+
+Analyzer does not cache data or results and does not apply rate limits. Request parameters and data selection rules are defined separately for each calculation.
+
+### Candle selection
+
+Set `to` to the start of the interval containing `evaluated_at`. Step backward by the required number of candle slots to obtain `from`.
 
 Proposed v1 behavior uses closed candles only. The current open candle is excluded even if it closes while the request is running. There is no caller-supplied historical end time in v1. For example, at `12:03:20 UTC`, a `1m` request ends at `12:03:00` and the last candle opens at `12:02:00`.
 
 Use Market Data calendar rules: days start at UTC midnight, weeks on Monday, and months on the first day. A month is not 30 days. Binance `3d` slots use the `1970-01-02T00:00:00Z` anchor. Support exactly the interval and exchange/market combinations described in the pinned client guide; do not invent aliases or normalize symbols.
 
-There is no preflight ticker or instrument call. The last selected candle close is the reference price. Market Data validates its enabled scopes and current instrument catalog.
+The last selected candle close is the reference price.
 
 The default upstream request and retention bounds are 1000 slots. Additional history counts toward them. Analyzer neither truncates depths nor splits requests to hide an upstream rejection. These are dependency restrictions, not a new Analyzer quota.
 
