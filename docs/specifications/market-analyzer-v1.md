@@ -99,9 +99,42 @@ Rules for using prices from the selected candles, including the choice of refere
 
 ### Numerical rules
 
-Preserve upstream decimal strings and optional fields unchanged in returned candles. Use exact decimal values for input comparisons and exact rational arithmetic for calculations in the proposed reference behavior. Go `math/big` can represent these values without binary floating-point conversion.
+Use `decimal.Decimal` from `github.com/shopspring/decimal v1.4.0` for calculations, matching Market Data. Parse source decimal strings directly into this type without converting them to binary floating-point numbers.
 
-Round derived values only for serialization: 34 significant decimal digits, round half to even, plain decimal strings without unnecessary trailing zeros. Internal comparisons use unrounded values. Return `numeric_policy = exact_rational_output_34_v1`; this makes rounding part of the contract. No NaN, infinity, or implicit missing-to-zero conversion is allowed. Benchmark the arithmetic with the upstream numeric bounds before release.
+Preserve the original Market Data values in the source data returned to clients. Keep missing optional values distinct from zero.
+
+Return calculated decimal values as strings using these output rules:
+
+- Use up to 8 significant digits for values other than percentages. Significant digits are counted from the first nonzero digit, so small values do not become zero just because they have many leading decimal zeros.
+- Use up to 6 decimal places for percentage values.
+- Remove unnecessary trailing zeros: `2.500000` becomes `2.5`.
+
+For example, `11 / 3` is returned as `3.6666667` under the significant-digit rule. A small value such as `0.0000000012345678` keeps its 8 significant digits.
+
+Keep extra precision in intermediate calculations and apply the output rounding only when preparing the response. Define internal division precision and rounding tie rules before implementation. The same inputs and parameters must produce consistent results. These output rules do not change the original source data returned to clients.
+
+### ATR and NATR
+
+ATR measures price volatility and includes gaps from the previous close. It does not identify direction. Use Wilder smoothing, as described by [Fidelity's ATR guide](https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/atr).
+
+Both requests require `period >= 1` and `history_bars >= period + 1`. `history_bars` is the total number of source candles, including the initial previous-close candle. It defines the initialization horizon, not a second smoothing period. Return the latest value only.
+
+For chronological candles `C[0]` through `C[m-1]` and period `n`:
+
+```text
+TR[i] = max(high[i] - low[i], abs(high[i] - close[i-1]), abs(low[i] - close[i-1]))
+ATR[n] = mean(TR[1], ..., TR[n])
+ATR[i] = (ATR[i-1] * (n - 1) + TR[i]) / n, for i > n
+NATR[i] = 100 * ATR[i] / close[i]
+```
+
+NATR is ATR as a percentage of the matching candle close. Source: [TA-Lib, Normalized Average True Range](https://ta-lib.org/functions/natr.html). ATR uses quote asset per base asset unit; NATR uses percent, so `2` means `2%`.
+
+Return methods `wilder_atr_v1` and `wilder_natr_v1`. NATR calls the same internal ATR calculation and also returns the ATR and reference close used. It does not call the Analyzer ATR RPC.
+
+For period `3`, TR values `2, 4, 3` seed ATR at `3`. A following TR of `5` gives ATR `11/3`. If its close is `100`, NATR is also `11/3` percent before output rounding. Zero price movement gives ATR and NATR `0` when the close is positive. Period `1` gives the latest TR before NATR normalization.
+
+The same period with a different history length can produce a different latest ATR because the seed changes. Return the actual history boundaries; do not promise equality with a chart using another initialization horizon.
 
 ### Trend definition and method
 
@@ -135,29 +168,6 @@ For each window, apply these rules in order, using its tolerance value `e`:
 `UP` and `DOWN` use reason `rising_structure` and `falling_structure`. `UNDETERMINED` is an analysis result, not an error or a synonym for sideways. This method is deliberately conservative: a reversal within a long window can make the global result undetermined while the local result is directional. A smooth rise with too few confirmed lows also remains undetermined.
 
 Use all pivots inside each selected window. Comparing only the last pair would not describe the full requested depth. Return the window boundaries, all pivot evidence, tolerance, state, and reason. Do not invent confidence percentages.
-
-### ATR and NATR
-
-ATR measures price volatility and includes gaps from the previous close. It does not identify direction. Use Wilder smoothing, as described by [Fidelity's ATR guide](https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/atr).
-
-Both requests require `period >= 1` and `history_bars >= period + 1`. `history_bars` is the total number of source candles, including the initial previous-close candle. It defines the initialization horizon, not a second smoothing period. Return the latest value only.
-
-For chronological candles `C[0]` through `C[m-1]` and period `n`:
-
-```text
-TR[i] = max(high[i] - low[i], abs(high[i] - close[i-1]), abs(low[i] - close[i-1]))
-ATR[n] = mean(TR[1], ..., TR[n])
-ATR[i] = (ATR[i-1] * (n - 1) + TR[i]) / n, for i > n
-NATR[i] = 100 * ATR[i] / close[i]
-```
-
-NATR is ATR as a percentage of the matching candle close. Source: [TA-Lib, Normalized Average True Range](https://ta-lib.org/functions/natr.html). ATR uses quote asset per base asset unit; NATR uses percent, so `2` means `2%`.
-
-Return methods `wilder_atr_v1` and `wilder_natr_v1`. NATR calls the same internal ATR calculation and also returns the ATR and reference close used. It does not call the Analyzer ATR RPC.
-
-For period `3`, TR values `2, 4, 3` seed ATR at `3`. A following TR of `5` gives ATR `11/3`. If its close is `100`, NATR is also `11/3` percent before output rounding. Zero price movement gives ATR and NATR `0` when the close is positive. Period `1` gives the latest TR before NATR normalization.
-
-The same period with a different history length can produce a different latest ATR because the seed changes. Return the actual history boundaries; do not promise equality with a chart using another initialization horizon.
 
 ### Support and resistance levels
 
