@@ -10,4 +10,5 @@ Go is the recommended implementation language.
 ## Documentation
 
 - [Version 1 specification](docs/specifications/market-analyzer-v1.md): requirements, proposed calculation rules, API, integration, and acceptance checks.
+- [Implementation phases](docs/specifications/phases/README.md): ordered work, deliverables, test cases, and completion criteria.
 - [Development instructions](AGENTS.md): project rules.
