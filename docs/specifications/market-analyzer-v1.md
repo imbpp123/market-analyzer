@@ -20,6 +20,7 @@ Version 1 supports only the following calculations:
 
 - ATR (Average True Range).
 - NATR (Normalized Average True Range).
+- Price extrema detection (pivot highs and lows).
 - Local trend detection.
 - Global trend detection.
 - Support level detection.
@@ -28,7 +29,7 @@ Version 1 supports only the following calculations:
 The service must meet these requirements:
 
 - Clients request analyses and receive results through gRPC.
-- Clients can request ATR, NATR, trend analysis, or support and resistance levels separately and supply the required calculation parameters. Trend analysis returns both local and global trends.
+- Clients can request ATR, NATR, price extrema, trend analysis, or support and resistance levels separately and supply the required calculation parameters. Trend analysis returns both local and global trends.
 - Each valid analysis request fetches the required exchange data from Market Data and calculates its result.
 - Every successful response includes the result and all raw data used in the calculation.
 - Analyzer does not cache data or results and does not apply rate limits.
@@ -50,7 +51,7 @@ Keep four responsibilities separate:
 
 | Responsibility | Owns |
 | --- | --- |
-| Domain | Candle value types, range arithmetic, trend, ATR, NATR, and level calculations |
+| Domain | Candle value types, range arithmetic, extrema, trend, ATR, NATR, and level calculations |
 | Application | Input validation, one request time, range planning, a consumer-owned candle-reader interface, result assembly |
 | Infrastructure | Market Data gRPC adapter and exact mapping of values, presence, and upstream errors |
 | Transport and entry point | Analyzer Protobuf mapping, gRPC handlers, operational HTTP, configuration, and dependency construction |
@@ -242,6 +243,27 @@ Each response also includes the calculation parameters, requested `to`, actual d
 - If all calculated TR values are zero, ATR and NATR are zero.
 - Different source history lengths can produce different final values with the same period because the initial mean uses different data.
 
+### Price extrema
+
+Price extrema are local peaks and troughs in price movement:
+
+- **High (`HIGH`)**: a peak followed by a price decline.
+- **Low (`LOW`)**: a trough followed by a price increase.
+
+An extremum is confirmed only after enough data about the following price movement becomes available. The confirmation conditions depend on the selected method.
+
+The indicator finds a sequence of extrema over the selected period. These points can be used on their own or to identify trends and support and resistance levels.
+
+Three calculation methods are supported:
+
+| Method | How an extremum is identified | Advantages | Limitations |
+| --- | --- | --- | --- |
+| **Neighboring candles** | Compare a candle's price with a specified number of candles on each side. A high must be strictly above the neighboring values; a low must be below them. | A simple rule that can detect small local price moves. | Does not account for movement size or volatility. Needs later candles for confirmation; equal peaks and troughs may be missed. |
+| **Percentage reversal** | Confirm a high after a decline from it by a specified percentage, or a low after a corresponding increase. | Filters out small moves. The percentage threshold accounts for the instrument's price scale. | Does not adapt to changes in volatility. The time needed for confirmation is not known in advance. |
+| **ATR-based reversal** | Confirm a point after an opposite price move equal to ATR multiplied by a specified factor. | Measures the size of a move relative to the instrument's volatility. | Requires ATR calculation and initial history. Results depend on the ATR period, multiplier, and the rule for choosing the ATR used in the threshold. |
+
+The first method selects points by their position relative to neighboring candles. The second and third use the size of the opposite price movement. The methods can therefore return different sequences of extrema from the same data.
+
 ### Trend definition and method
 
 Fidelity defines trend through the direction of price peaks and troughs: rising peaks and troughs describe an uptrend; falling ones describe a downtrend; sideways movement remains in a horizontal range. This is a market definition, not a complete automated detector. Source: [Fidelity, Basic concepts of trend](https://www.fidelity.com/learning-center/trading-investing/technical-analysis/basic-concepts-trend).
@@ -258,9 +280,7 @@ Fetch exactly `global_bars` candles once. The local window uses the last `local_
 
 Illustrative values are `global_bars = 300`, `local_bars = 60`, global span `5`, local span `2`, and tolerance `0.05` percent. These are examples, not defaults or calibrated values.
 
-A confirmed pivot high is a candle whose high is strictly greater than every high in the preceding and following `pivot_span` candles. A pivot low uses strictly lower lows. All neighbors must be inside that trend window. Equal-price plateaus do not create pivots. A candle may qualify as both a high and low; the method compares the two lists independently and does not infer the order of trades inside a candle.
-
-No future candles are fetched. The final `pivot_span` candles cannot yet be confirmed pivots, but still provide confirmation evidence. Return each pivot's source index and the closing time of its final confirming candle.
+Use the [price extrema detector](#price-extrema) independently inside each trend window with its own `pivot_span`. Compare the resulting high and low lists separately. The trend tolerance below does not change the extrema detection rules.
 
 For each window, apply these rules in order, using its tolerance value `e`:
 
@@ -286,7 +306,7 @@ Required parameters:
 | Parameter | Meaning and validation |
 | --- | --- |
 | `lookback_bars` | Detection window; at least `2 * pivot_span + 1` |
-| `pivot_span` | Strict pivot rule defined above; at least 1 |
+| `pivot_span` | [Price extrema](#price-extrema) comparison span; at least 1 |
 | `atr_period` | Wilder period; at least 1 |
 | `atr_history_bars` | Total ATR source window; at least `atr_period + 1` |
 | `zone_width_atr` | Positive decimal multiplier for the latest ATR |
@@ -295,7 +315,7 @@ Required parameters:
 
 Fetch `max(lookback_bars, atr_history_bars)` closed candles once. Detection uses its `lookback_bars` suffix; ATR uses its `atr_history_bars` suffix. Return both ranges. Additional ATR candles are not level candidates.
 
-1. Find confirmed pivot highs and lows in the detection window.
+1. Find confirmed pivot highs and lows in the detection window using the [price extrema detector](#price-extrema).
 2. Set maximum zone width `w = zone_width_atr * latest_ATR` in price units.
 3. Sort all candidate prices ascending, breaking ties by candle index, then high before low.
 4. Start a group with the lowest remaining price `p`. Include consecutive prices at most `p + w`, then start the next group. Anchor each group at its first price; do not chain nearby prices into a zone wider than `w`.
@@ -310,13 +330,14 @@ Zero ATR gives zero zone width and groups only equal prices. No eligible zones i
 
 ## Data Model / API / Interfaces
 
-Proposed package: `marketanalyzer.v1`. All four methods are unary:
+Proposed package: `marketanalyzer.v1`. All five methods are unary:
 
 | RPC | Request beyond the common selector | Result |
 | --- | --- | --- |
 | `GetTrend` | Global/local bars, global/local pivot spans, equality tolerance percent | Global and local `TrendResult` |
 | `GetATR` | Period, history bars | Latest ATR |
 | `GetNATR` | Period, history bars | Latest NATR, ATR, reference close |
+| `GetExtrema` | `to`, `candle_count`, `pivot_span` | Confirmed pivot highs and lows |
 | `GetLevels` | Parameters in the levels table | Zero or more zones and volatility evidence |
 
 Common selector: required `exchange`, `market`, `symbol`, and `interval`, matching Market Data meanings. One request selects one series. Clients call again for another timeframe. Numeric counts use integer Protobuf fields; decimal parameters and values use strings; times use `google.protobuf.Timestamp`. Use field presence for required inputs, so omission is distinct from explicit zero where zero is valid. There are no implicit algorithm defaults in v1.
@@ -398,6 +419,7 @@ Unit tests use deterministic candles, an injected clock, and a small candle-read
 | --- | --- |
 | Calendar and ranges | Current partial interval excluded; exact boundary; month length and leap year; Monday week; Binance 3-day anchor; total history includes initialization; UTC behavior |
 | ATR/NATR | Hand-calculated seed and recurrence; gaps above/below previous close; period 1; exactly `period + 1` bars; longer history; zero range; tiny/large prices; output rounding and invalid close |
+| Extrema | Strict highs and lows; span 1; minimum window; equal-price plateaus; flat and monotonic data; both kinds on one candle; missing edge neighbors; confirmation time; source indices; stable order; empty result; invalid span and count |
 | Trend | Rising highs and lows; falling highs and lows; horizontal and flat ranges; mixed, broken, and insufficient structure; equality at tolerance; equal plateaus; one candle with both pivot kinds; independent local/global results; whole-window comparisons |
 | Look-ahead | No pivot at the unconfirmed right edge; confirmation time matches its final neighbor; candles outside a local window cannot create local pivots |
 | Levels | Separated repeated pivots; insufficient touches; clustered equal prices; width boundary; no transitive over-merging; touch spacing; one candle counted once; zero ATR; empty result; roles above/below/inside zone; deterministic order |
