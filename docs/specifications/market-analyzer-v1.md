@@ -138,26 +138,109 @@ The same inputs and parameters must produce the same result. Tests for each algo
 
 ### ATR and NATR
 
-ATR measures price volatility and includes gaps from the previous close. It does not identify direction. Use Wilder smoothing, as described by [Fidelity's ATR guide](https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/atr).
+ATR measures price volatility, including gaps between candles. It does not identify direction. The calculation uses Wilder smoothing.
 
-Both requests require `period >= 1` and `history_bars >= period + 1`. `history_bars` is the total number of source candles, including the initial previous-close candle. It defines the initialization horizon, not a second smoothing period. Return the latest value only.
+NATR expresses ATR as a percentage of the closing price. This allows clients to compare relative volatility across instruments with different prices.
 
-For chronological candles `C[0]` through `C[m-1]` and period `n`:
+**Request parameters**
+
+- `exchange`, `market`, `symbol`: instrument identity.
+- `to`, `candle_count`, `interval`: source candle selection, following the [candle selection rules](#candle-selection).
+- `period`: the smoothing period, an integer of at least 1.
+
+Require `candle_count >= period + 1`. The first candle provides the previous closing price for the next candle's True Range. All remaining candles take part in the sequential indicator calculation.
+
+The `period` and `candle_count` have different purposes. For example, a period of 14 can be applied to a history of 300 candles.
+
+**ATR calculation**
+
+For each candle, starting with the second, calculate True Range:
 
 ```text
-TR[i] = max(high[i] - low[i], abs(high[i] - close[i-1]), abs(low[i] - close[i-1]))
-ATR[n] = mean(TR[1], ..., TR[n])
-ATR[i] = (ATR[i-1] * (n - 1) + TR[i]) / n, for i > n
-NATR[i] = 100 * ATR[i] / close[i]
+TR = max(
+    high - low,
+    abs(high - previous_close),
+    abs(low - previous_close)
+)
 ```
 
-NATR is ATR as a percentage of the matching candle close. Source: [TA-Lib, Normalized Average True Range](https://ta-lib.org/functions/natr.html). ATR uses quote asset per base asset unit; NATR uses percent, so `2` means `2%`.
+The first ATR value is the mean of the first `period` TR values:
 
-Return methods `wilder_atr_v1` and `wilder_natr_v1`. NATR calls the same internal ATR calculation and also returns the ATR and reference close used. It does not call the Analyzer ATR RPC.
+```text
+ATR = sum of the first period TR values / period
+```
 
-For period `3`, TR values `2, 4, 3` seed ATR at `3`. A following TR of `5` gives ATR `11/3`. If its close is `100`, NATR is also `11/3` percent before output rounding. Zero price movement gives ATR and NATR `0` when the close is positive. Period `1` gives the latest TR before NATR normalization.
+For each following candle, apply:
 
-The same period with a different history length can produce a different latest ATR because the seed changes. Return the actual history boundaries; do not promise equality with a chart using another initialization horizon.
+```text
+ATR = (previous_ATR * (period - 1) + TR) / period
+```
+
+Calculate each value in order through the last selected candle. True Range and Wilder smoothing are described in [Fidelity's ATR guide](https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/atr).
+
+**NATR calculation**
+
+```text
+NATR = (100 * ATR) / close
+```
+
+Use the ATR and closing price of the last selected candle. Multiply by 100 first, then divide.
+
+NATR uses the shared internal ATR calculation. It does not call a separate gRPC method. The normalization formula is described in [TA-Lib's NATR guide](https://ta-lib.org/functions/natr.html).
+
+**Precision**
+
+Apply the common [numerical rules](#numerical-rules):
+
+- Round each division to 16 significant digits.
+- Use intermediate values in further calculations.
+- Round to the nearest value, with ties rounded away from zero.
+- Return ATR with up to 8 significant digits.
+- Return NATR with up to 6 decimal places.
+
+Calculate NATR from the intermediate ATR, not from the rounded response value.
+
+**Example**
+
+With a period of 3, the first TR values are `2`, `4`, and `3`:
+
+```text
+First ATR = (2 + 4 + 3) / 3 = 3
+```
+
+The next TR value is `5`:
+
+```text
+Next ATR = (3 * 2 + 5) / 3
+         = 3.666666666666667
+```
+
+If the closing price of the last candle is `100`, the response contains:
+
+```text
+ATR  = "3.6666667"
+NATR = "3.666667"
+```
+
+ATR uses the instrument's price units. NATR uses percent: `"2"` means `2%`.
+
+**Response**
+
+Return the latest calculated value, without the full indicator series:
+
+- ATR returns the ATR value.
+- NATR returns the NATR value, the ATR used, and the closing price.
+
+Each response also includes the calculation parameters, requested `to`, actual data boundaries, and all source candles used.
+
+**Validation and edge cases**
+
+- If `period < 1` or `candle_count < period + 1`, reject the request before calling Market Data.
+- After receiving the data, check its completeness and validity.
+- Return an invalid source data error for nonpositive OHLC prices.
+- With a period of 1, ATR equals the TR of the last candle.
+- If all calculated TR values are zero, ATR and NATR are zero.
+- Different source history lengths can produce different final values with the same period because the initial mean uses different data.
 
 ### Trend definition and method
 
