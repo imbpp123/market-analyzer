@@ -252,7 +252,7 @@ Price extrema are local peaks and troughs in price movement:
 
 An extremum is confirmed only after enough data about the following price movement becomes available. The confirmation conditions depend on the selected method.
 
-The indicator finds a sequence of extrema over the selected period. These points can be used on their own or to identify trends and support and resistance levels.
+The indicator finds a sequence of confirmed extrema over the selected period.
 
 Three calculation methods are supported:
 
@@ -263,6 +263,138 @@ Three calculation methods are supported:
 | **ATR-based reversal** | Confirm a point after an opposite price move equal to ATR multiplied by a specified factor. | Measures the size of a move relative to the instrument's volatility. | Requires ATR calculation and initial history. Results depend on the ATR period, multiplier, and the rule for choosing the ATR used in the threshold. |
 
 The first method selects points by their position relative to neighboring candles. The second and third use the size of the opposite price movement. The methods can therefore return different sequences of extrema from the same data.
+
+#### Common input data and parameters
+
+All extrema detection methods use these parameters:
+
+| Parameter | Purpose |
+| --- | --- |
+| `exchange` | Exchange. |
+| `market` | Market type, such as spot or linear. |
+| `symbol` | Instrument identifier on the selected exchange and market. |
+| `to` | The point in time for the analysis. |
+| `candle_count` | Number of source candles. |
+| `interval` | Candle timeframe. |
+| `price_source` | Prices used to identify extrema. |
+
+All listed parameters are required. Select candles using the [candle selection rules](#candle-selection) and process them in chronological order.
+
+The `price_source` accepts one of two values:
+
+- **`CLOSE`**: identify highs and lows using candle closing prices.
+- **`HIGH_LOW`**: identify highs using `high` and lows using `low`.
+
+The `CLOSE` option describes the structure of closing prices. The `HIGH_LOW` option includes peaks and troughs within candles, including their wicks.
+
+Confirmation rules and additional parameters are defined separately for each method. If a method uses ATR, calculate it from the source `high`, `low`, and `close` values, regardless of `price_source`.
+
+#### 1. Neighboring candles — LOCAL_EXTREMA
+
+This method identifies extrema by comparing each candle's price with a specified number of neighboring candles on both sides.
+
+A high must be strictly above all compared values, and a low must be strictly below them. No minimum price movement is required.
+
+**Input parameters**
+
+Use the parameters from [Common input data and parameters](#common-input-data-and-parameters).
+
+One additional parameter is required:
+
+- `pivot_span`: the number of neighboring candles on each side of the candidate. An integer of at least 1.
+
+The calculation requires:
+
+```text
+candle_count >= 2 * pivot_span + 1
+```
+
+For example, `pivot_span = 2` requires at least 5 candles: the candidate, two candles on the left, and two on the right.
+
+**Price selection**
+
+Depending on `price_source`:
+
+- `CLOSE`: use closing prices to detect both highs and lows.
+- `HIGH_LOW`: use `high` to detect highs and `low` to detect lows.
+
+Compare source values before rounding for the response. This method does not use ATR or percentage tolerances.
+
+**Calculation steps**
+
+1. Process candles in chronological order.
+2. For each candle, check that it has `pivot_span` neighbors on both sides within the selected history.
+3. Compare the relevant candle price with all neighboring values.
+4. If it is strictly above every compared value, record a `HIGH`.
+5. If it is strictly below every compared value, record a `LOW`.
+
+Candles without enough neighbors are not candidates, but they still provide comparison data for other candles.
+
+**Example**
+
+With `price_source = CLOSE` and `pivot_span = 2`:
+
+```text
+Closing prices: 100, 103, 108, 104, 102
+                         ^
+                        HIGH
+```
+
+The middle candle closes above both candles on the left and both candles on the right.
+
+Similarly:
+
+```text
+Closing prices: 100, 97, 92, 96, 99
+                        ^
+                       LOW
+```
+
+**Equal values**
+
+If any compared neighbor has the same price, the candidate is not a strict extremum of that kind.
+
+For example:
+
+```text
+Closing prices: 100, 103, 108, 108, 102
+```
+
+The middle candle is not a strict high because a neighboring candle has the same closing price. The method does not merge equal peaks or troughs into one point.
+
+**Confirmation**
+
+An extremum is confirmed when the last required candle on its right closes.
+
+With `pivot_span = 2`, a point on the one-minute candle `14:00–14:01` can be confirmed after the candle `14:02–14:03` closes, at `14:03`.
+
+Keep the extremum time and confirmation time separate. If the required right-hand neighbors have not closed by the requested `to`, do not return the point.
+
+The first and last `pivot_span` candles of the selected history cannot be extrema in this calculation. Do not request extra candles outside the selected history.
+
+**Result**
+
+Return all confirmed extrema. Each point contains:
+
+- Kind: `HIGH` or `LOW`.
+- Source candle index, starting at zero.
+- Source candle opening time.
+- Extremum price from the selected source.
+- Confirmation candle index.
+- Confirmation time: the closing time of the last required right-hand neighbor.
+
+The result also includes the common input parameters, `pivot_span`, actual data boundaries, and all source candles used.
+
+Sort points by source candle time. With `HIGH_LOW`, a candle can be both a high and a low. Return both points, with `HIGH` before `LOW`. This is the record order, not a claim about the order of price movements within the candle.
+
+**Validation and limitations**
+
+- Return a parameter error if `pivot_span < 1` or the requested `candle_count` is below the required minimum.
+- The received history must be complete and valid.
+- No detected extrema is a successful result with an empty list.
+- A constant, strictly increasing, or strictly decreasing sequence of the selected prices has no strict extrema.
+- Highs and lows do not have to alternate: the method checks each kind independently.
+- Increasing `pivot_span` makes the comparison cover more neighboring candles. It does not measure a point's reliability.
 
 ### Trend definition and method
 
