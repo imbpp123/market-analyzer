@@ -1293,134 +1293,352 @@ Additional rules:
 
 New candles can change the latest ATR. A later calculation can therefore change the grouping of historical extrema, zone bounds, and zone roles. Zones are not guaranteed to remain unchanged across different source selections.
 
-## Data Model / API / Interfaces
+## Data Model
 
-Proposed package: `marketanalyzer.v1`. All five methods are unary:
+The domain model describes calculation inputs, results, and their relationships. It has no database entities or persistent identifiers. All objects exist within one analysis request.
 
-| RPC | Request beyond the common selector | Result |
-| --- | --- | --- |
-| `GetTrend` | Global/local bars, global/local pivot spans, equality tolerance percent | Global and local `TrendResult` |
-| `GetATR` | Period, history bars | Latest ATR |
-| `GetNATR` | Period, history bars | Latest NATR, ATR, reference close |
-| `GetExtrema` | `to`, `candle_count`, `pivot_span` | Confirmed pivot highs and lows |
-| `GetLevels` | Parameters in the levels table | Zero or more zones and volatility evidence |
+### Domain values
 
-Common selector: required `exchange`, `market`, `symbol`, and `interval`, matching Market Data meanings. One request selects one series. Clients call again for another timeframe. Numeric counts use integer Protobuf fields; decimal parameters and values use strings; times use `google.protobuf.Timestamp`. Use field presence for required inputs, so omission is distinct from explicit zero where zero is valid. There are no implicit algorithm defaults in v1.
-
-Every successful response includes:
-
-| Field group | Content |
+| Value | Responsibility |
 | --- | --- |
-| Identity and time | Echoed series, `evaluated_at`, actual source `from` and `to` |
-| Reproducibility | Method version, numeric policy, and effective parameters |
-| Source | Chronological `candles`, returned once, including all initialization and confirmation candles |
-| Result | Indicator values or analysis states, with source ranges and evidence references |
+| `Instrument` | Exchange, market, and exact symbol. |
+| `CandleSelection` | Instrument, interval, requested `to`, and total `candle_count`. |
+| `CandleRange` | Calculated inclusive `from` and exclusive `to`, using the interval calendar. |
+| `Candle` | Opening and closing times and parsed OHLC, volume, and turnover values. |
+| `CandleSeries` | Instrument, interval, actual range, and a complete chronological candle list. |
+| `ATRSettings` | Smoothing period. |
+| `ExtremaSettings` | Price source and exactly one of the three method settings. |
+| `TrendSettings` | Extrema settings and equality tolerance percent. |
+| `LevelSettings` | Extrema settings, ATR period for zone width, width multiplier, minimum touches, and touch spacing. |
 
-Analyzer owns its public `Candle` message with the same meanings as Market Data `Kline`: `open_time`, `close_time`, `open`, `high`, `low`, `close`, `volume`, `turnover`, optional `trades_count`, and `fetched_at`. Preserve all fields and their presence. Map at the adapter boundary; do not expose upstream generated types inside the domain. Raw means the Market Data candle values used, not an exchange HTTP payload or reconstructed OHLC data.
+Use `decimal.Decimal` for domain decimal values and the shared [numerical rules](#numerical-rules). Calendar calculations belong to the domain; the application selects the required range and coordinates its loading.
 
-Evidence uses zero-based indices into `candles`. A range is `(start_index, count)`. Trend and level pivots contain kind, candle index, price, and confirmation time. Return latest-value time as the final source candle's exclusive `close_time`.
+Values must satisfy their invariants before calculation. A validated `CandleSeries` has matching identity, correct slot boundaries, positive OHLC values, valid OHLC ordering, and no missing or duplicate slots. Calculations must not modify their input series or settings.
 
-Enums reserve zero for `UNSPECIFIED`; successful results never use it. Trend states are `UP`, `DOWN`, `SIDEWAYS`, and `UNDETERMINED`. Zone roles are `SUPPORT`, `RESISTANCE`, and `AT_PRICE`.
+`ExtremaSettings` has three concrete alternatives:
 
-No persistent data model is needed. Generate the concrete schema and client packages during implementation, after reviewing this draft. Changing an algorithm or its rounding rules requires a new method version; do not change meaning silently.
+- `LocalExtremaSettings`: `pivot_span`.
+- `PercentReversalSettings`: `reversal_pct`.
+- `ATRReversalSettings`: `atr_period` and `atr_multiplier`.
+
+Use the alternatives directly. Do not represent a method with a set of unrelated optional fields that permits invalid combinations.
+
+### Calculation results
+
+| Result | Content |
+| --- | --- |
+| `ATRResult` | Latest ATR and its source candle index. |
+| `NATRResult` | Latest NATR, the ATR used, reference close, and source candle index. |
+| `Extremum` | Kind, source candle index, source price, confirmation candle index, and method-specific evidence. |
+| `ExtremaResult` | Ordered confirmed extrema. |
+| `TrendResult` | One state and reason, tolerance in price units, and reference close. |
+| `PriceZone` | Bounds, midpoint, role, references to grouped extrema, and accepted touch candle indices. |
+| `LevelsResult` | Ordered zones, latest ATR, maximum zone width, and reference close. |
+
+An extremum's opening time and confirmation time are obtained from its source and confirmation candles. Reversal evidence contains the threshold and confirmation price; ATR reversal also contains the candidate ATR. Evidence that does not apply to the selected method is absent.
+
+A zone references extrema by their zero-based positions in the calculation's `ExtremaResult`. Accepted touches reference zero-based positions in the source candle list. Keep these two index types distinct. A zone's touch count and first and last touch times are derived from its accepted candle indices.
+
+These are value objects and calculation results. They do not need generated IDs, repositories, or an inheritance hierarchy.
+
+### Domain calculations and composition
+
+Implement the following responsibilities as concrete domain functions or small stateless services:
+
+| Calculation | Inputs and responsibility |
+| --- | --- |
+| ATR calculation | Validated candles and period; calculate Wilder ATR values in chronological order. |
+| NATR calculation | Intermediate ATR and matching close; calculate the normalized value. |
+| Extrema detection | Validated candles and extrema settings; execute the selected method. ATR reversal uses the shared ATR calculation. |
+| Trend classification | Validated candles, confirmed extrema, price source, and tolerance; apply the strict ordered classification rules. |
+| Zone construction | Confirmed extrema, latest ATR, reference close, and zone settings; group points, count touches, and assign roles. |
+
+The public ATR operation returns only the latest value. Internally, ATR reversal needs values at candidate candles. Use one ATR calculation that can provide the internal sequence, with the first value at source index `period`. Do not invent zero ATR values for earlier candles.
+
+The application composes these calculations for each use case:
+
+- ATR: calculate ATR and select its latest value.
+- NATR: calculate ATR, then normalize its latest value.
+- Extrema: detect extrema, using ATR when the selected method requires it.
+- Trend: detect extrema, then classify one trend from the same candles and points.
+- Levels: detect extrema, calculate the latest ATR for zone width, then construct zones.
+
+For levels with ATR reversal, reuse an ATR sequence when the period and source history match. Different periods require separate sequences. Reuse lasts only within the current request; it does not create a cache shared by requests.
+
+Internal trend classification and zone construction can accept calculated extrema. Clients provide extrema settings, not precomputed points. Domain calculations never call Analyzer RPCs or Market Data.
+
+Use concrete calls for internal calculations. Interfaces are needed at external boundaries, not for every calculation. Long loops must honor request cancellation; a standard Go context may be passed for this purpose without adding I/O or transport dependencies.
+
+## API / Interfaces
+
+### Application and Market Data boundary
+
+The application exposes five typed use cases matching the five analyses. Each accepts application-owned input types and a request context, and returns a typed analysis response or an application error. Transport code converts Protobuf messages to and from these types.
+
+Define a consumer-owned `CandleReader` interface in the application. Its operation accepts an instrument, interval, and calculated `[from, to)` range, and returns the source series or a typed dependency error. The Market Data adapter implements this interface with `MarketDataService.GetKlines`.
+
+For a valid request, plan one range and make one application-level `GetKlines` call. Do not fetch tickers, request separate histories for dependent indicators, retry in an application loop, or combine concurrent requests. Reuse the gRPC connection across requests.
+
+Keep two representations of source data within the request:
+
+- Application-owned `SourceCandle` records preserve Market Data strings, timestamps, and optional values for the response.
+- Domain `Candle` values contain parsed numbers for validation and calculation.
+
+Both lists have the same length and index order. Parse each numeric source value once. The adapter removes upstream generated types at the boundary. Neither the domain nor the application imports Market Data Protobuf types.
+
+Inject the candle reader and a clock. Capture `evaluated_at` once at request start. It records processing time and does not replace the caller's `to`. Reject a selected range whose end is after the current closed-candle boundary; do not silently clamp it. The calculated range must also satisfy Market Data timestamp and calendar constraints.
+
+### gRPC service
+
+Use Protobuf package `marketanalyzer.v1` and service `MarketAnalyzerService`. All methods are unary. Define typed request and response messages for each method.
+
+| RPC | Request | Result |
+| --- | --- | --- |
+| `GetATR` | Selection and `ATRSettings` | Latest ATR. |
+| `GetNATR` | Selection and `ATRSettings` | Latest NATR, ATR used, and reference close. |
+| `GetExtrema` | Selection and `ExtremaSettings` | All confirmed extrema. |
+| `GetTrend` | Selection and `TrendSettings` | One trend result and all extrema used. |
+| `GetLevels` | Selection and `LevelSettings` | All retained zones, all extrema used in grouping, and volatility evidence. |
+
+Each request contains a required `selection` with `exchange`, `market`, `symbol`, `to`, `candle_count`, and `interval`. One request selects one instrument and one interval. Field meanings follow [Candle selection](#candle-selection) and the pinned Market Data contract. Preserve exact symbol spelling and interval case.
+
+`ExtremaSettings` contains required `price_source` and a Protobuf `oneof` with:
+
+| Alternative | Fields |
+| --- | --- |
+| `local_extrema` | `pivot_span` |
+| `reversal_percent` | `reversal_pct` |
+| `reversal_atr` | `atr_period`, `atr_multiplier` |
+
+The selected alternative identifies the method; do not add a second method selector that can disagree with it. A missing method is invalid.
+
+`TrendSettings` contains required `extrema` and `equality_tolerance_pct`. `LevelSettings` contains required `extrema`, `atr_period`, `zone_width_atr`, `min_touches`, and `min_touch_separation_bars`. In level requests, `extrema.reversal_atr.atr_period` controls pivot detection, while `levels.atr_period` controls zone width.
+
+Use presence for required scalar inputs, including values where explicit zero is valid. Use positive integer counts and periods represented as optional `uint32` fields; validate minimum values and arithmetic before conversion to platform integers. Use `google.protobuf.Timestamp` for times and strings for decimal parameters and outputs. There are no implicit algorithm defaults.
+
+Decimal input parameters use plain base-10 notation with an optional sign and fractional part. Reject whitespace, exponent notation, nonnumeric values, and strings longer than 1,024 characters. Apply each parameter's sign and range rules after parsing. This is a numeric input bound, not a request rate limit. Return calculated decimal strings using [Numerical rules](#numerical-rules).
+
+Enums reserve zero for `UNSPECIFIED`. Reject unspecified or unknown input enum values. Successful result enums never use zero:
+
+- Price source: `CLOSE`, `HIGH_LOW`.
+- Extremum kind: `HIGH`, `LOW`.
+- Trend state: `UP`, `DOWN`, `SIDEWAYS`, `UNDETERMINED`.
+- Zone role: `SUPPORT`, `RESISTANCE`, `AT_PRICE`.
+
+Trend reasons are the stable values defined in [Trend detection](#trend-detection). Clients must handle unknown future reason values without treating them as a known state.
+
+### Response structure and source fidelity
+
+Each typed response contains common metadata, source candles, and its calculation result:
+
+| Part | Content |
+| --- | --- |
+| Selection | Echoed instrument, interval, requested `to`, and `candle_count`. |
+| Time | `evaluated_at`, actual `source_from`, and exclusive `source_to`. |
+| Calculation | Effective settings, algorithm versions, and numeric policy version. |
+| Source | One chronological `candles` list containing every selected source candle. |
+| Result | The typed indicator result and the evidence required by its calculation section. |
+
+Analyzer owns its `Candle` Protobuf message. It preserves the meanings and values of Market Data `Kline`: `open_time`, `close_time`, `open`, `high`, `low`, `close`, `volume`, `turnover`, optional `trades_count`, and `fetched_at`. Raw data means these Market Data values, not an exchange HTTP payload. Do not reconstruct source decimal strings from parsed values or replace missing trade counts with zero.
+
+Source-derived prices in evidence, such as extrema prices, confirmation prices, and the reference close, retain the corresponding original source value. Derived results, including ATR, thresholds, tolerance, and zone values, follow response rounding. All decisions use intermediate values before response rounding. Displayed rounded values can therefore hide a small difference that affected a decision; source candles and effective settings allow recalculation.
+
+Extrema appear once in each response that uses them. Zone `extremum_indices` refer to that list, including points from groups later discarded. Zone `accepted_candle_indices` refer to `candles`. Both lists use zero-based indices. Include point and confirmation times, touch count, and first and last accepted touch times as defined in the calculation sections; these must agree with their referenced records.
+
+ATR and NATR include the final source candle index and its exclusive closing time as the value time. Extrema include method-specific evidence with presence, so an absent candidate ATR cannot be confused with zero. Do not include full ATR sequences or unfinished extrema candidates in public responses.
+
+### Versioning
+
+Keep API schema compatibility separate from calculation behavior. Use the following initial algorithm identifiers:
+
+| Calculation | Identifier |
+| --- | --- |
+| Wilder ATR | `wilder_atr_v1` |
+| NATR | `wilder_natr_v1` |
+| Neighboring extrema | `local_extrema_v1` |
+| Percentage reversal | `reversal_percent_v1` |
+| ATR reversal | `reversal_atr_v1` |
+| Strict trend classification | `swing_structure_v1` |
+| Horizontal zones | `pivot_zones_v1` |
+
+Return the identifiers of all calculations used, including dependencies. Use numeric policy `decimal_sig16_output8_pct6_v1` for the approved [Numerical rules](#numerical-rules).
+
+Changing calculation or rounding rules requires a new identifier. Do not silently reinterpret existing identifiers. Version 1 accepts only the described methods; selecting historical algorithm versions is not a request feature. Generate the schema and Go client during implementation, and reserve removed Protobuf field numbers and enum values.
 
 ## Failure Modes / Edge Cases
 
-Validate counts and arithmetic without integer overflow. Reject missing fields, unsupported selector values, invalid decimal text, and invalid parameter combinations before fetching data. Do not repair invalid requests with defaults.
+### Invalid request or source data
 
-Validate source identity, exact requested slot count, strict chronological order, aligned contiguous slots, and exclusive close times. Reject duplicates, gaps, wrong series, nonpositive OHLC prices, negative volume or turnover, negative present trade counts, and invalid OHLC ordering. Require `low <= open <= high` and `low <= close <= high`. Required timestamps and decimal fields must be valid. Preserve zero volume and missing trade counts; do not synthesize bars or reorder malformed responses.
+Reject missing fields, invalid settings, unsupported selectors, and impossible calendar ranges before calling Market Data. Minimum candle checks validate the requested count, not the availability of actual data. Use checked arithmetic for counts, periods, and range planning.
 
-| Condition | gRPC status and Analyzer reason |
+After fetching, validate identity, exact slot count, chronological order, contiguous aligned intervals, and exclusive close times. Validate required timestamps and decimal fields, positive OHLC values, `low <= open <= high`, `low <= close <= high`, nonnegative volume and turnover, and nonnegative present trade counts. Preserve valid zero quantities and optional absence. Do not reorder, repair, or synthesize source records.
+
+A failed load or invalid successful upstream response fails the whole analysis. An empty extrema or zone list is valid when the source data passes validation. `UNDETERMINED` is a valid trend result, never a replacement for a source or calculation error.
+
+### Error mapping
+
+The Market Data adapter converts upstream errors to application-owned errors. Only the gRPC transport maps these errors to public statuses and details.
+
+| Condition | gRPC status | Analyzer reason |
+| --- | --- | --- |
+| Invalid caller parameters or locally invalid range | `INVALID_ARGUMENT` | `invalid_parameter` |
+| Market Data rejects parameters, range, retention, or request size | `INVALID_ARGUMENT` | `market_data_rejected_request` |
+| Unknown instrument | `NOT_FOUND` | `symbol_not_found` |
+| Market Data reports incomplete data | `FAILED_PRECONDITION` | `incomplete_data` |
+| Malformed successful response or upstream `DATA_LOSS` | `DATA_LOSS` | `invalid_market_data` |
+| Market Data unavailable or not ready | `UNAVAILABLE` | `market_data_unavailable` |
+| Upstream overload or response exceeds upstream receive limit | `RESOURCE_EXHAUSTED` | `market_data_resource_exhausted` |
+| Analyzer request exceeds transport receive limit | `RESOURCE_EXHAUSTED` | Native transport error; details may be absent. |
+| Analyzer response exceeds configured size | `RESOURCE_EXHAUSTED` | `response_too_large` |
+| Caller or upstream cancellation | `CANCELLED` | `request_canceled` |
+| Effective deadline or upstream deadline expires | `DEADLINE_EXCEEDED` | `request_timeout` |
+| Upstream method is unavailable | `UNIMPLEMENTED` | `market_data_contract_mismatch` |
+| Other upstream failures, including authentication and permission failures | `INTERNAL` | `market_data_failure` |
+| Unexpected local calculation failure | `INTERNAL` | `internal_error` |
+
+Application failures carry an Analyzer `ErrorDetail` with a stable `reason`, optional invalid `field`, and optional `upstream_code` and `upstream_reason`. Do not parse human-readable upstream error messages. Unknown or missing upstream details must not cause a panic. Preserve known status categories even when details are absent; map otherwise unclassified upstream failures to `market_data_failure`.
+
+Native gRPC failures can occur before a handler or after the connection is lost, so custom details are not guaranteed. Clients must handle status-only errors.
+
+### Deadlines and transport bounds
+
+Use an overall request timeout of 30 seconds by default, with an earlier client deadline taking precedence. Apply it to loading, calculation, and response preparation. Pass cancellation through the reader and domain loops. Do not return a partial result after cancellation.
+
+Initial configurable transport limits are 64 KiB for Analyzer requests, 16 MiB for Market Data responses, and 32 MiB for Analyzer responses, measured as uncompressed Protobuf sizes. Check the full Analyzer response size before sending it, including raw candles and evidence. Fail rather than truncate. Native request size rejection may occur before application validation.
+
+These are initial operating settings to validate in load and serialization tests. They do not add request rate limits or promise that every possible result fits the configured transport size. Market Data retention and request constraints still apply independently.
+
+## Operations and Observability
+
+Run analysis gRPC and operational HTTP on separate listeners. Configure listener addresses, Market Data endpoint, request timeout, transport sizes, and shutdown timeout at startup. Pass validated settings into the application; domain calculations do not read environment variables.
+
+Authentication, encryption, network access rules, and other environment security controls are deployment responsibilities. They are outside this service's calculation design.
+
+### Operational endpoints
+
+| Endpoint | Behavior |
 | --- | --- |
-| Bad caller parameters | `INVALID_ARGUMENT`, `invalid_parameter` |
-| Upstream invalid range, retention, or size rejection | `INVALID_ARGUMENT`, `market_data_rejected_request`, with upstream reason |
-| Unknown instrument | `NOT_FOUND`, `symbol_not_found` |
-| Upstream incomplete candle history | `FAILED_PRECONDITION`, `incomplete_data` |
-| Malformed successful upstream response | `DATA_LOSS`, `invalid_market_data` |
-| Upstream unavailable or not ready | `UNAVAILABLE`, `market_data_unavailable` |
-| Upstream overload or upstream response too large | `RESOURCE_EXHAUSTED`, `market_data_resource_exhausted` |
-| Analyzer response exceeds configured transport size | `RESOURCE_EXHAUSTED`, `response_too_large` |
-| Caller canceled or effective deadline expired | `CANCELLED`, `request_canceled`, or `DEADLINE_EXCEEDED`, `request_timeout` |
-| Upstream authentication, permission, or unexpected internal failure | `INTERNAL`, `market_data_failure`; safe upstream status in details |
-| Upstream method unavailable in the deployed contract | `UNIMPLEMENTED`, `market_data_contract_mismatch` |
-| Internal calculation failure | `INTERNAL`, `internal_error` |
+| `GET /health` | `200` while the local process is live. No Market Data call. |
+| `GET /ready` | `200` after valid configuration and listener initialization; `503` during startup and shutdown. |
+| `GET /metrics` | Request and dependency metrics. |
 
-Preserve upstream `DATA_LOSS`, deadline, and cancellation status in the matching categories above. Attach an Analyzer error detail containing stable `reason` and, when relevant, `upstream_code` and optional `upstream_reason`. Do not parse upstream human-readable error messages. Handle missing and unknown upstream details without panic or raw credential disclosure.
+Readiness means the Analyzer can accept requests. It does not guarantee that Market Data is reachable, a symbol is available, or source data is fresh. Dependency failures are reported through analysis responses and metrics. There are no HTTP analysis routes or REST gateway.
 
-No partial responses: malformed data or failed fetching fails the RPC. A valid trend window with too few pivots returns `UNDETERMINED`; too little actual candle history fails the RPC. Empty level results are valid.
+### Metrics and logs
 
-Proposed operational defaults: a 30-second overall request deadline, with an earlier client deadline taking precedence; a 16 MiB upstream receive limit; and a separately configurable 32 MiB Analyzer response limit. The larger response allowance accounts for source candles plus evidence. These are transport and execution bounds, not rate limiting. Never silently truncate a result. Final values must be validated with serialized-response tests.
+Record request counts by RPC and status, total duration, Market Data duration, calculation duration, source candle count, serialized response size, and active requests. Keep metric labels bounded; do not use symbols, request IDs, or error message text as labels.
 
-Propagate cancellation through the adapter and check it during long calculations. Do not add an application retry loop or retry policy. One upstream failure ends that analysis request. Market Data may continue its own shared fill after this caller cancels; Analyzer does not own that work.
+Structured request logs include the RPC, instrument, selected range, algorithm identifiers, duration, status, and stable error reason. Do not log full candle or extrema arrays by default. Observability belongs in transport and infrastructure wrappers, not domain calculations.
 
-## Security / Privacy
+### Shutdown
 
-Analyzer needs a Market Data endpoint, not exchange credentials. The reviewed Market Data server has no native TLS or authentication. Use its plaintext endpoint only on a trusted connection, or an approved protected gRPC endpoint. Restrict operational HTTP to the deployment's internal network. Authentication and encryption at the Analyzer ingress remain deployment decisions.
+On shutdown, set readiness false and stop accepting new analysis work. Let in-flight requests finish within a configurable shutdown timeout, initially 30 seconds. When it expires, cancel remaining work and stop the servers. Close the shared Market Data connection after request processing stops. The shutdown coordinator must not wait indefinitely for graceful gRPC shutdown.
 
-## Observability
+## Implementation Plan
 
-Proposed operational HTTP endpoints on a separate listener:
+Implement in five phases:
 
-- `GET /health`: `200` while the local process is live; no upstream calls.
-- `GET /ready`: `200` after valid configuration and listener initialization; `503` during startup and shutdown. It does not claim that all Market Data symbols are ready or fresh.
-- `GET /metrics`: request counts by method and status, request and upstream duration, source candle counts, response bytes, and active requests. Do not label metrics with symbols or request IDs.
+1. Domain values and numerical foundations.
+2. Indicator calculations and composition.
+3. Protobuf contract and application use cases.
+4. Market Data adapter, listeners, and operations.
+5. End-to-end validation and performance checks.
 
-Log method, series, method version, elapsed time, and safe failure reason. Do not log full candle arrays by default. Set readiness false before graceful shutdown, stop accepting new requests, and finish or cancel in-flight work within the configured shutdown deadline.
+### Phase 1: Domain foundations
 
-## Migration / Rollout Plan
+Implement validated values, interval calendar arithmetic, source validation, and the approved decimal operations and formatting. Pin `shopspring/decimal v1.4.0` and establish a compatible Go toolchain.
 
-1. Review the algorithm and deployment decisions listed below; pin the integration contract and toolchain.
-2. Define Analyzer Protobuf messages and implement pure calculations with the acceptance cases below.
-3. Add the application flow, Market Data adapter, and operational listeners; verify real serialization boundaries.
-4. Run the service against a test Market Data instance and measure latency, allocations, exact arithmetic cost, and response sizes at supported depths. Document tested bounds without adding caller quotas.
+Expected result: deterministic, independently tested domain inputs and numerical behavior, without external service access.
 
-There is no data migration. This work item delivers documentation only.
+### Phase 2: Calculations
+
+Implement ATR and NATR, then all three extrema methods, strict trend classification, and zone construction in dependency order. Reuse ATR and extrema calculations as described in [Domain calculations and composition](#domain-calculations-and-composition).
+
+Expected result: all calculation rules work on in-memory candles and pass the relevant acceptance cases below.
+
+### Phase 3: Contract and use cases
+
+Define Protobuf messages, generate Go code, and implement all five application use cases with a fake candle reader. Add response assembly, source preservation, metadata, error types, and transport mapping. Pin code generators and keep generated files reproducible.
+
+Expected result: local gRPC integration tests verify requests, typed responses, field presence, decimal strings, and evidence references for every RPC.
+
+### Phase 4: Service integration
+
+Implement the Market Data adapter against the pinned contract, dependency construction, operational HTTP, metrics, deadlines, and graceful shutdown. Add startup configuration and documented build and run commands.
+
+Expected result: a runnable service that loads real Market Data responses and provides all five analyses through gRPC.
+
+### Phase 5: Release validation
+
+Run against a test Market Data instance. Measure latency, CPU, memory, cancellation response, and serialized sizes across supported methods and depths. Include large valid decimal inputs and concurrent independent requests. Validate the initial timeout and transport settings, and document the tested configuration.
+
+Expected result: a verified build with operational defaults supported by measurements. There is no data migration. This specification update does not implement these phases.
 
 ## Testing / Validation
 
-Unit tests use deterministic candles, an injected clock, and a small candle-reader fake. Use `t.Context()` and follow the repository test rules. Integration tests use a local gRPC server; external exchanges and credentials are not unit-test dependencies.
+Use deterministic domain fixtures and the repository's testing rules. Expected values must be explicit and must not be calculated by copying the production algorithm into tests. Use `t.Context()` for tests and an injected clock for application time checks.
 
-| Area | Required acceptance cases |
+### Domain acceptance cases
+
+| Area | Required behavior |
 | --- | --- |
-| Calendar and ranges | Current partial interval excluded; exact boundary; month length and leap year; Monday week; Binance 3-day anchor; total history includes initialization; UTC behavior |
-| ATR/NATR | Hand-calculated seed and recurrence; gaps above/below previous close; period 1; exactly `period + 1` bars; longer history; zero range; tiny/large prices; output rounding and invalid close |
-| Extrema | Strict highs and lows; span 1; minimum window; equal-price plateaus; flat and monotonic data; both kinds on one candle; missing edge neighbors; confirmation time; source indices; stable order; empty result; invalid span and count |
-| Trend | Rising highs and lows; falling highs and lows; horizontal and flat ranges; mixed, broken, and insufficient structure; equality at tolerance; equal plateaus; one candle with both pivot kinds; independent local/global results; whole-window comparisons |
-| Look-ahead | No pivot at the unconfirmed right edge; confirmation time matches its final neighbor; candles outside a local window cannot create local pivots |
-| Levels | Separated repeated pivots; insufficient touches; clustered equal prices; width boundary; no transitive over-merging; touch spacing; one candle counted once; zero ATR; empty result; roles above/below/inside zone; deterministic order |
-| Source fidelity | Exact decimal strings, timestamps, optional trade count absent versus zero, all source candles, valid source indices and initialization ranges |
-| Invalid upstream data | Wrong series, gaps, duplicates, wrong order/calendar, missing timestamps, malformed prices, invalid OHLC or negative quantities |
-| Request flow | Same request after upstream data changes returns a newly calculated result; no cache or coalescing; both trends and internal level ATR share the one fetched range |
-| Failures and operations | Upstream status/details, missing details, cancellation during fetch and calculation, deadlines, response-size failure without truncation, readiness lifecycle, no HTTP analysis route |
+| Selection | Historical and current `to`; exact and partial boundaries; count includes initialization; UTC day, Monday week, month and leap-year behavior; Binance 3-day anchor; overflow and unavailable future range rejection. |
+| Numerical rules | Exact addition, subtraction, and multiplication; 16 significant digits per division; ties away from zero; 8 significant output digits or 6 percentage decimal places; tiny and large values; comparisons before output rounding. |
+| ATR and NATR | Explicit seed and recurrence examples; gaps; period 1; minimum count; zero volatility; changed initialization history; NATR from intermediate ATR. |
+| Local extrema | Both price sources; strict neighbors; equal plateaus; both kinds on one candle; edge exclusions; confirmation indices and times; empty result. |
+| Percentage reversal | Exact threshold; last equal candidate wins; update before confirmation; no same-candle confirmation; ambiguous initial reversal waits; alternating points; unfinished candidate excluded. |
+| ATR reversal | Warmup at the oldest end; first candidate and earliest confirmation indices; candidate ATR frozen until update; equal-price update replaces ATR; zero candidate ATR; both price sources and shared reversal rules. |
+| Trend | Every state and reason; flat range before insufficient structure; all adjacent pairs compared; mixed and broken structure; exact tolerance boundaries; independent high and low lists; all extrema methods. |
+| Zones | Mixed high and low grouping; fixed lowest-price anchor; exact width boundary; unique candle touches; spacing equality; excluded touch points still affect bounds; zero ATR; empty result; role at both bounds. |
+| Composition | Same source series throughout; equal ATR periods give consistent shared values; different periods remain independent; no rounding of intermediates before dependent calculations. |
 
-Include concrete trend fixtures with pivot highs `100, 110, 120` and lows `90, 95, 105` for `UP`, and reversed sequences for `DOWN`, with zero tolerance and a latest close that does not break the structure. Mixed highs `100, 110, 105` must not pass the whole-window `UP` rule. With zone width `1`, candidates `100, 100.75, 101.5` form groups `[100, 100.75]` and `[101.5]` before touch filtering.
+Keep the approved worked examples as regression cases. In particular, extrema prices `100, 100.75, 101.5` with width `1` form two groups; indices `10, 12, 16, 23` with spacing `5` accept `10, 16, 23`. Build complete candle fixtures as well as direct point fixtures for trend and zone tests.
 
-Once code exists, run formatting, focused tests, and the repository build, vet, unit, race, and configured lint checks. This documentation change needs content, links, and whitespace review; it cannot establish calculation accuracy or service performance.
+Check confirmation stability for reversal methods when candles are appended with earlier data and parameters unchanged. Do not apply this invariant to zone grouping: the latest ATR can change its historical groups.
+
+### Application and integration checks
+
+Use a small stateful candle-reader fake for application tests and local gRPC servers for adapter and transport tests. Unit tests must not depend on external exchanges or credentials.
+
+Cover:
+
+- Invalid parameters fail before the reader is called; valid requests read one complete range and return a correctly calculated result.
+- Repeating a request after the fake source changes returns the new source and new result. Concurrent requests keep independent state.
+- Wrong identity, gaps, duplicate or unordered slots, invalid OHLC, missing timestamps, and invalid quantities fail without a partial response.
+- All raw decimal strings, timestamps, and optional trade count values survive adapter and response mapping, including absent versus zero.
+- Every candle and extrema reference resolves correctly; returned times, touch counts, and evidence agree with those references.
+- Every extrema settings alternative and every result variant survives actual Protobuf serialization. Missing settings, unknown enums, and invalid decimal inputs are rejected.
+- Upstream status and optional details map as documented; missing and unknown details are handled.
+- Cancellation during loading and calculation, effective deadlines, transport size boundaries, readiness, and bounded shutdown behave as specified.
+- All five analyses are available over gRPC and no analysis is exposed over HTTP.
+
+Once implementation exists, run formatting, focused tests, build, vet, unit tests, race tests, and the configured linter. Benchmark full responses with raw data and evidence, not only calculation functions. Documentation checks cover content consistency, section links, and whitespace; they do not prove runtime correctness or performance.
 
 ## Risks / Trade-offs
 
-- The proposed trend and level algorithms are deterministic heuristics. Parameter choices need chart examples before they become accepted rules.
-- Strict pivots confirm with a delay, ignore equal-price plateaus, and can report insufficient structure in a visible directional move. The conservative global rule can remain undetermined after a reversal.
-- Levels based only on pivots can miss meaningful price areas. A zone role and touch count do not establish its reliability.
-- No Analyzer cache means repeated upstream calls and calculations. Upstream limits still apply, and returning every candle increases response size.
-- Exact arithmetic avoids hidden input rounding but costs CPU and memory, especially with large decimal strings and long smoothing histories.
-- Closed candles come from the Market Data snapshot. Its contract does not reconcile later exchange corrections to confirmed cached candles.
+- Confirmed extrema have a delay. Local extrema skip equal plateaus; reversal methods depend on movement thresholds and initialization. A visible move may have too few confirmed points for a trend.
+- Strict trend classification can return `UNDETERMINED` after one correction. This is the accepted initial behavior; a softer method would be a separate future design.
+- Zones represent repeated confirmed extrema under the selected grouping rule. They do not count every price contact or confirm future reliability.
+- The latest ATR sets all zone widths. New candles can regroup older extrema, and nearby points can lie on opposite sides of a group boundary.
+- Decimal division and output formatting have defined rounding. Output values can conceal differences used internally near classification boundaries.
+- Every request loads data and returns all source candles. Concurrent calculations, large decimal values, and evidence lists increase memory and response sizes; operating settings need measurements.
+- Market Data owns collection, retention, and cached source values. Analyzer cannot recover unavailable history or guarantee later exchange corrections are reflected in a repeated request.
 
-## Open Questions
+## Remaining Implementation Decisions
 
-1. Accept two nested depths on one timeframe as global/local, or use separate timeframes? This draft proposes nested depths.
-2. Accept closed candles only in v1, or require the changing open candle? Open-candle analysis needs explicit provisional-result behavior.
-3. Accept `swing_structure_v1`, including `UNDETERMINED`, whole-window comparison, strict pivots, and caller-supplied tolerance? Real chart examples should settle the intended behavior.
-4. Accept horizontal `pivot_zones_v1` as the meaning of levels, or require another level type or significance rule?
-5. Confirm deployment endpoint, ingress security, request deadline, and transport-size settings before release.
+The calculation rules are defined. The remaining work is implementation and verification, not another choice of trend or extrema behavior.
+
+Before release, record the deployed Market Data endpoint and contract version, pin the toolchain and generators, and validate the proposed timeouts and transport limits with the phase 5 measurements. Environment security settings belong to deployment configuration.
 
 ## Sources
 
-Definitions were checked on 2026-09-14. Source definitions do not approve our proposed detection rules.
+External sources explain indicator definitions and reference formulas. The calculation sections above define this service's exact behavior.
 
 - [Fidelity: Basic concepts of trend](https://www.fidelity.com/learning-center/trading-investing/technical-analysis/basic-concepts-trend).
 - [Fidelity: Average True Range](https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/atr).
 - [TA-Lib: Normalized Average True Range](https://ta-lib.org/functions/natr.html).
 - [Fidelity: Support and resistance](https://www.fidelity.com/learning-center/trading-investing/technical-analysis/support-and-resistance).
+- [Fidelity: Wealth-Lab Pro function reference](https://www.fidelity.com/products/atp/content/wsFuncRef_US.pdf), for the percentage reversal principle.
+- [shopspring/decimal v1.4.0](https://github.com/shopspring/decimal/tree/v1.4.0), the selected decimal library.
 - [gRPC: Go basics tutorial](https://grpc.io/docs/languages/go/basics/).
-- [Market Data API](https://github.com/imbpp123/market-data/tree/4e5ce32a4847738e99e786e342054cbbced632c5/api).
+- [Market Data API](https://github.com/imbpp123/market-data/tree/4e5ce32a4847738e99e786e342054cbbced632c5/api), including the pinned schema and client guide linked in Context.
