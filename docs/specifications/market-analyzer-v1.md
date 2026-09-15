@@ -396,6 +396,164 @@ Sort points by source candle time. With `HIGH_LOW`, a candle can be both a high 
 - Highs and lows do not have to alternate: the method checks each kind independently.
 - Increasing `pivot_span` makes the comparison cover more neighboring candles. It does not measure a point's reliability.
 
+#### 2. Percentage reversal — REVERSAL_PERCENT
+
+This method confirms an extremum after an opposite price move of a specified percentage: a high after a sufficient decline, or a low after a sufficient increase.
+
+Until confirmation, the point is a candidate. If the price reaches a new extreme, update the candidate.
+
+This principle is used by the `Peak` and `Trough` functions in the [Wealth-Lab Pro reference published by Fidelity](https://www.fidelity.com/products/atp/content/wsFuncRef_US.pdf). The candle processing rules below define the behavior of this calculation.
+
+**Input parameters**
+
+Use the parameters from [Common input data and parameters](#common-input-data-and-parameters).
+
+One additional parameter is required:
+
+- `reversal_pct`: the opposite price move required to confirm an extremum, expressed as a percentage.
+
+Require `0 < reversal_pct < 100`. A value of `2` means `2%`.
+
+At least two source candles are required. This allows detection but does not guarantee a nonempty result.
+
+**Price selection**
+
+| Source | High candidate | High confirmation | Low candidate | Low confirmation |
+| --- | --- | --- | --- | --- |
+| `CLOSE` | Highest close | Decline in close | Lowest close | Increase in close |
+| `HIGH_LOW` | Highest `high` | Decline in `low` | Lowest `low` | Increase in `high` |
+
+This method does not use ATR or a neighboring candle count.
+
+**Confirmation threshold**
+
+Calculate the threshold from the current candidate price:
+
+```text
+threshold = candidate_price * reversal_pct / 100
+```
+
+Confirm a high when:
+
+```text
+candidate_price - confirmation_price >= threshold
+```
+
+Confirm a low when:
+
+```text
+confirmation_price - candidate_price >= threshold
+```
+
+Reaching the threshold exactly is sufficient. Apply the common [numerical rules](#numerical-rules) and compare values before rounding for the response.
+
+**Initial direction**
+
+At the start of the history, the search direction is unknown. Initialize both a high candidate and a low candidate from the first candle.
+
+Process later candles in order. Update each candidate when a new extreme or an equal price appears, then check reversal conditions for candidates that were not updated on that candle:
+
+- A sufficient decline confirms the first `HIGH`.
+- A sufficient increase confirms the first `LOW`.
+
+A candidate can only be confirmed on a later candle. If the same candle meets both eligible confirmation conditions, confirm neither point. Keep updating candidates normally and wait for a candle that gives an unambiguous first confirmation.
+
+**Finding a high**
+
+1. Keep the highest price as the high candidate.
+2. If a higher price appears, update the candidate and recalculate the threshold.
+3. If the candidate was not updated on the current candle, check for a sufficient decline.
+4. When the threshold is reached, record a `HIGH`.
+5. Start searching for a low, using the relevant price of the confirmation candle as the initial low candidate.
+
+Do not confirm the new low candidate on that same candle.
+
+**Finding a low**
+
+1. Keep the lowest price as the low candidate.
+2. If a lower price appears, update the candidate and recalculate the threshold.
+3. If the candidate was not updated on the current candle, check for a sufficient increase.
+4. When the threshold is reached, record a `LOW`.
+5. Start searching for a high, using the relevant price of the confirmation candle as the initial high candidate.
+
+Do not confirm the new high candidate on that same candle. After the first point, confirmed highs and lows alternate.
+
+**Example**
+
+With `price_source = CLOSE` and `reversal_pct = 5`:
+
+```text
+Closing prices: 100 → 104 → 110 → 108 → 106 → 104.5
+```
+
+The increase from `100` to `110` confirms the initial low at `100`. The method then searches for a high, with `110` as its candidate:
+
+```text
+threshold = 110 * 5 / 100 = 5.5
+```
+
+Closes of `108` and `106` do not provide a sufficient decline. The close at `104.5` reaches the threshold and confirms the high at `110`.
+
+If a close at `112` appeared before confirmation, the candidate would update:
+
+```text
+threshold = 112 * 5 / 100 = 5.6
+confirmation requires close <= 106.4
+```
+
+**Equal values**
+
+When the candidate price repeats, keep the latest candle at that price. The percentage threshold stays the same, but this counts as a candidate update.
+
+For example, while searching for a high:
+
+```text
+110 → 108 → 110 → 104.5
+```
+
+The confirmed high belongs to the second candle at `110`. Apply the same rule to lows.
+
+**Ambiguous movement within a candle**
+
+With `HIGH_LOW`, a candle may both update the candidate and show a sufficient opposite move. The order of its high and low is unknown.
+
+Give candidate updates priority:
+
+- Update the candidate first, including when its price repeats.
+- If the candidate was updated, do not confirm it on that candle.
+- Check for confirmation starting with the next candle.
+
+Confirm at most one extremum per candle. This rule can miss a fast reversal within a candle, but does not assume an unknown order of price events.
+
+**Confirmation and result**
+
+Return only confirmed extrema. Do not include the final unconfirmed candidate.
+
+Each point contains:
+
+- Kind: `HIGH` or `LOW`.
+- Source candle index, starting at zero, and opening time.
+- Extremum price.
+- Confirmation candle index.
+- Confirmation time: the closing time of the confirmation candle.
+- Reversal threshold in price units.
+- Price that met the confirmation condition.
+
+The result also includes the common input parameters, `reversal_pct`, actual data boundaries, and all source candles used.
+
+Return points in chronological order. Keep the extremum time and confirmation time separate.
+
+**Validation and limitations**
+
+- Return a parameter error for an invalid `reversal_pct` or `candle_count < 2`.
+- The received history must be complete and valid, with positive prices.
+- No confirmed points is a successful result with an empty list.
+- The percentage is measured from the candidate price. Equal percentage increases and declines can have different absolute sizes.
+- The time needed for confirmation is not known in advance.
+- The method does not adapt the threshold to current volatility.
+- Changing the start of the selected history can change the point sequence.
+- Adding later candles does not change confirmed extrema when the history start, earlier source data, and parameters stay unchanged.
+
 ### Trend definition and method
 
 Fidelity defines trend through the direction of price peaks and troughs: rising peaks and troughs describe an uptrend; falling ones describe a downtrend; sideways movement remains in a horizontal range. This is a market definition, not a complete automated detector. Source: [Fidelity, Basic concepts of trend](https://www.fidelity.com/learning-center/trading-investing/technical-analysis/basic-concepts-trend).
