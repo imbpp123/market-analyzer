@@ -825,36 +825,255 @@ Use only the selected history. Do not use candles that close after the requested
 
 Preserve source values according to the [numerical rules](#numerical-rules). All source and confirmation candle indices in the result must refer to the returned candle list.
 
-### Trend definition and method
+### Trend detection
 
-Fidelity defines trend through the direction of price peaks and troughs: rising peaks and troughs describe an uptrend; falling ones describe a downtrend; sideways movement remains in a horizontal range. This is a market definition, not a complete automated detector. Source: [Fidelity, Basic concepts of trend](https://www.fidelity.com/learning-center/trading-investing/technical-analysis/basic-concepts-trend).
+Trend describes the direction of price movement through a sequence of peaks and troughs:
 
-Proposed method: `swing_structure_v1`. Both trends use the same interval and end time:
+- **Uptrend**: highs and lows rise.
+- **Downtrend**: highs and lows fall.
+- **Sideways movement**: peaks and troughs stay within a horizontal range.
 
-- `global_bars` selects the longer window.
-- `local_bars` selects its most recent, shorter suffix.
-- Require `global_bars > local_bars > 0`.
-- Each window has its own required `pivot_span >= 1`. Require `bars >= 2 * pivot_span + 1`.
-- A required `equality_tolerance_pct >= 0` defines small price differences. Its price value is `last_close * equality_tolerance_pct / 100`, shared by both windows.
+This definition follows [Fidelity's explanation of trend](https://www.fidelity.com/learning-center/trading-investing/technical-analysis/basic-concepts-trend). The classification rules below make it specific for this calculation.
 
-Fetch exactly `global_bars` candles once. The local window uses the last `local_bars` candles from that response. Pivot confirmation requires no extra candles outside these windows.
+The indicator determines one trend over a selected range. The caller chooses the range's scale and purpose.
 
-Illustrative values are `global_bars = 300`, `local_bars = 60`, global span `5`, local span `2`, and tolerance `0.05` percent. These are examples, not defaults or calibrated values.
+Use the [Price extrema](#price-extrema) calculation with the supplied parameters to obtain confirmed extrema.
 
-Use the [price extrema detector](#price-extrema) independently inside each trend window with its own `pivot_span`. Compare the resulting high and low lists separately. The trend tolerance below does not change the extrema detection rules.
+#### Input data and parameters
 
-For each window, apply these rules in order, using its tolerance value `e`:
+Selected range parameters:
 
-1. If the full window's highest high minus lowest low is at most `e`, return `SIDEWAYS` with reason `flat_range`.
-2. If fewer than two pivot highs or two pivot lows exist, return `UNDETERMINED` with reason `insufficient_structure`.
-3. Compare every adjacent pair in each pivot list. Return `UP` if all high increases and all low increases are greater than `e`. If the latest close is below the latest pivot low minus `e`, return `UNDETERMINED` with reason `structure_broken` instead.
-4. Return `DOWN` if all high decreases and all low decreases are greater than `e`. If the latest close is above the latest pivot high plus `e`, return `UNDETERMINED` with reason `structure_broken` instead.
-5. Return `SIDEWAYS` if the spread of pivot highs and the spread of pivot lows are each at most `e`, and the latest close is inside `[minimum pivot low - e, maximum pivot high + e]`. The reason is `horizontal_structure`.
-6. Otherwise return `UNDETERMINED` with reason `mixed_structure`.
+- `exchange`, `market`, `symbol`: instrument identity.
+- `to`, `candle_count`, `interval`: source candle selection according to [Candle selection](#candle-selection).
 
-`UP` and `DOWN` use reason `rising_structure` and `falling_structure`. `UNDETERMINED` is an analysis result, not an error or a synonym for sideways. This method is deliberately conservative: a reversal within a long window can make the global result undetermined while the local result is directional. A smooth rise with too few confirmed lows also remains undetermined.
+Extrema detection parameters:
 
-Use all pivots inside each selected window. Comparing only the last pair would not describe the full requested depth. Return the window boundaries, all pivot evidence, tolerance, state, and reason. Do not invent confidence percentages.
+- `price_source`: `CLOSE` or `HIGH_LOW`.
+- Method: `LOCAL_EXTREMA`, `REVERSAL_PERCENT`, or `REVERSAL_ATR`.
+- The selected method's parameters, as defined in [Price extrema](#price-extrema).
+
+Price comparison parameter:
+
+- `equality_tolerance_pct`: the allowed price difference, expressed as a percentage, within which values are treated as approximately equal.
+
+All listed parameters are required. Require:
+
+```text
+equality_tolerance_pct >= 0
+```
+
+The source candle count must meet the selected extrema detection method's requirements.
+
+#### Extrema preparation
+
+Run Price extrema on the selected candles using the supplied method, parameters, and `price_source`.
+
+Use only confirmed points. Unconfirmed candidates do not take part in classification.
+
+Source candles and calculated extrema belong to the same instrument, timeframe, and range. Trend detection does not require an additional candle set.
+
+If `REVERSAL_ATR` is selected, ATR is used inside extrema detection. Trend direction itself is determined by comparing the resulting point prices.
+
+#### Comparison tolerance
+
+The tolerance prevents small price differences from being treated as rising or falling structure.
+
+Convert the percentage to price units:
+
+```text
+e = last_close * equality_tolerance_pct / 100
+```
+
+For example:
+
+```text
+last_close:             100
+equality_tolerance_pct: 0.05
+tolerance in price:     0.05
+```
+
+When comparing the next point with the previous one:
+
+- A difference greater than `e` is an increase.
+- A difference below `-e` is a decrease.
+- A difference from `-e` through `e`, inclusive, is equality within tolerance.
+
+Zero tolerance means exact value comparison.
+
+The caller supplies the tolerance. It does not change detected extrema; it applies to their price comparisons after detection.
+
+Apply [Numerical rules](#numerical-rules) before rounding results for the response.
+
+#### Direction classification
+
+Apply the checks in the order below. The first matching condition determines the result.
+
+**1. Nearly constant price**
+
+Calculate the full range of selected prices:
+
+- For `CLOSE`: maximum close minus minimum close.
+- For `HIGH_LOW`: maximum high minus minimum low.
+
+If this range is at most `e`, return:
+
+```text
+SIDEWAYS
+reason: flat_range
+```
+
+This case does not require extrema.
+
+**2. Insufficient structure**
+
+If fewer than two highs or fewer than two lows were detected, return:
+
+```text
+UNDETERMINED
+reason: insufficient_structure
+```
+
+This is a valid result: source data is valid, but there are not enough confirmed points to compare direction.
+
+**3. Rising structure**
+
+Treat highs and lows as two separate sequences ordered by time.
+
+Rising structure requires:
+
+- Every next high is above the previous high by more than `e`.
+- Every next low is above the previous low by more than `e`.
+
+If the last close is below the last confirmed low by more than `e`, return:
+
+```text
+UNDETERMINED
+reason: structure_broken
+```
+
+Otherwise, return:
+
+```text
+UP
+reason: rising_structure
+```
+
+**4. Falling structure**
+
+Falling structure requires:
+
+- Every next high is below the previous high by more than `e`.
+- Every next low is below the previous low by more than `e`.
+
+If the last close is above the last confirmed high by more than `e`, return:
+
+```text
+UNDETERMINED
+reason: structure_broken
+```
+
+Otherwise, return:
+
+```text
+DOWN
+reason: falling_structure
+```
+
+Check for broken structure using the last source candle's close, regardless of `price_source`.
+
+**5. Horizontal structure**
+
+Sideways movement requires all of the following:
+
+- The spread of confirmed highs is at most `e`.
+- The spread of confirmed lows is at most `e`.
+- The last close is inside this inclusive range:
+
+```text
+[lowest confirmed low - e, highest confirmed high + e]
+```
+
+Spread means the difference between the largest and smallest point prices of the same kind.
+
+Return:
+
+```text
+SIDEWAYS
+reason: horizontal_structure
+```
+
+**6. Mixed structure**
+
+If none of the earlier conditions match, return:
+
+```text
+UNDETERMINED
+reason: mixed_structure
+```
+
+An undetermined direction is not treated as sideways movement.
+
+#### Examples
+
+With zero tolerance:
+
+```text
+Highs: 100 → 110 → 120
+Lows:   90 →  95 → 105
+Last close: 115
+
+Result: UP
+Reason: rising_structure
+```
+
+```text
+Highs: 120 → 110 → 100
+Lows:  105 →  95 →  90
+Last close: 95
+
+Result: DOWN
+Reason: falling_structure
+```
+
+```text
+Highs: 100 → 110 → 105
+Lows:   90 →  95 →  97
+Last close: 102
+
+Result: UNDETERMINED
+Reason: mixed_structure
+```
+
+In the last example, highs do not keep one direction even though lows rise.
+
+#### Result
+
+Return one result for the selected range:
+
+- State: `UP`, `DOWN`, `SIDEWAYS`, or `UNDETERMINED`.
+- Classification reason.
+- Range parameters and actual boundaries.
+- Confirmed extrema used.
+- Extrema detection method and parameters.
+- Price source.
+- Tolerance in percent and price units.
+- Last close.
+- All source candles used.
+
+Do not calculate a confidence percentage.
+
+#### Validation and limitations
+
+- Validate required parameters, the tolerance, and the selected Price extrema method's settings.
+- Received candles must match the selected range and pass common source data checks.
+- Apply the selected method's validation rules during extrema detection.
+- All source and confirmation candle references must match the returned data.
+- Invalid parameters or data produce an error, not `UNDETERMINED`.
+- Compare highs and lows as separate sequences. They do not have to alternate.
+- Extrema confirmation is delayed, so the latest price moves may not yet appear in the structure.
+- Changing the range, extrema method, its parameters, or tolerance can change the result.
+
+This strict method evaluates the full extremum sequence in the selected range. A directional trend requires every consecutive pair of highs and every consecutive pair of lows to keep the direction. A correction can therefore produce `UNDETERMINED` even when the chart appears to mostly rise or fall.
 
 ### Support and resistance levels
 
