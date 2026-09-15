@@ -554,6 +554,220 @@ Return points in chronological order. Keep the extremum time and confirmation ti
 - Changing the start of the selected history can change the point sequence.
 - Adding later candles does not change confirmed extrema when the history start, earlier source data, and parameters stay unchanged.
 
+#### 3. ATR-based reversal — REVERSAL_ATR
+
+This method confirms an extremum after an opposite price move over a distance based on ATR:
+
+```text
+reversal_threshold = ATR * atr_multiplier
+```
+
+A high is confirmed after a sufficient decline, and a low after a sufficient increase. Unlike a fixed percentage threshold, the required movement depends on the instrument's volatility.
+
+**Input parameters**
+
+Use the parameters from [Common input data and parameters](#common-input-data-and-parameters).
+
+Two additional parameters are required:
+
+- `atr_period`: the ATR calculation period, an integer of at least 1.
+- `atr_multiplier`: a positive factor that sets the required opposite movement in ATR units.
+
+For example, `atr_multiplier = 1.5` means a distance of one and a half ATR values.
+
+Require:
+
+```text
+candle_count >= atr_period + 2
+```
+
+This provides enough data for the first ATR and a possible candidate confirmation on the next candle. It does not guarantee a nonempty result.
+
+**Calculation direction and initial history**
+
+Select the candle range backward from `to`, but perform all calculations from the oldest candle to the newest.
+
+The first `atr_period` candles of the selected history prepare the ATR calculation. The next candle provides the first ATR value and starts candidate detection.
+
+For example, with `candle_count = 60` and `atr_period = 10`:
+
+```text
+From oldest to newest:
+
+Candle 1       Previous close for the first TR.
+Candles 2–11   First 10 TR values.
+Candle 11      First ATR and initial candidates.
+Candles 12–60  Extrema detection and confirmation.
+```
+
+Thus, detection excludes the 10 oldest candles, not the last 10 candles before `to`.
+
+An unconfirmed candidate may remain at the end of the history. Confirmation depends on the size of a later price move, not on waiting for a fixed number of candles.
+
+The `candle_count` includes all source history, including preparation candles. Do not request extra candles outside the selected range.
+
+**Price selection**
+
+| Source | High candidate | High confirmation | Low candidate | Low confirmation |
+| --- | --- | --- | --- | --- |
+| `CLOSE` | Highest close | Decline in close | Lowest close | Increase in close |
+| `HIGH_LOW` | Highest `high` | Decline in `low` | Lowest `low` | Increase in `high` |
+
+Always calculate ATR from the source `high`, `low`, and `close`, regardless of `price_source`.
+
+**ATR calculation**
+
+Use the calculation from [ATR and NATR](#atr-and-natr):
+
+1. Calculate True Range starting with the second source candle.
+2. Calculate the initial ATR as the mean of the first `atr_period` TR values.
+3. Calculate ATR for the remaining candles in order using Wilder smoothing.
+
+Extrema detection uses ATR values at the relevant candles, not the final ATR of the entire history. Each calculation uses only data available at that point in the sequence.
+
+**Fixed candidate threshold**
+
+For each candidate, keep:
+
+- Its price.
+- Its source candle.
+- The ATR of that candle.
+- The threshold `ATR * atr_multiplier`.
+
+While the candidate stays unchanged, keep its ATR and threshold unchanged.
+
+When the candidate updates, save the new candle's price and ATR, then recalculate the threshold. An equal extreme price also updates the candidate to the latest candle, including its ATR.
+
+The threshold reflects volatility at the candidate candle. A change in ATR on later candles alone does not confirm a reversal.
+
+**Confirmation conditions**
+
+For a high:
+
+```text
+candidate_price - confirmation_price >= candidate_ATR * atr_multiplier
+```
+
+For a low:
+
+```text
+confirmation_price - candidate_price >= candidate_ATR * atr_multiplier
+```
+
+Reaching the threshold exactly is sufficient. Apply the [numerical rules](#numerical-rules). Use the intermediate ATR, not its rounded response value.
+
+**Initial direction**
+
+Create high and low candidates on the first candle with an available ATR.
+
+Apply the initial direction rules of `REVERSAL_PERCENT`, using ATR thresholds:
+
+- A sufficient decline confirms the first `HIGH`.
+- A sufficient increase confirms the first `LOW`.
+- Do not confirm a candidate on the candle that creates or updates it.
+- If one candle can confirm both eligible candidates, confirm neither.
+- Keep updating candidates until the first confirmation is unambiguous.
+
+**Calculation steps**
+
+When searching for a high:
+
+1. Track the highest price.
+2. If a higher or equal price appears, update the candidate, its candle, ATR, and threshold.
+3. If the candidate did not update, check the decline from its price.
+4. When the positive threshold is reached, confirm a `HIGH`.
+5. Start searching for a low using the relevant price and ATR of the confirmation candle.
+
+When searching for a low, reverse these steps: track the lowest price and wait for a sufficient increase.
+
+After the first confirmed point, highs and lows alternate. Confirm at most one point per candle.
+
+**Example**
+
+The method is searching for a high:
+
+```text
+candidate_price: 100
+candidate_ATR:   2
+atr_multiplier:  1.5
+
+threshold:       2 * 1.5 = 3
+```
+
+On later candles, the confirmation price declines:
+
+```text
+99 → 98 → 97
+```
+
+The moves to `99` and `98` are too small. At `97`, the high at `100` is confirmed if the candidate has not updated during that time.
+
+If ATR changes to `1.5` during the decline, the existing candidate's threshold stays at `3`.
+
+If a new peak appears before confirmation:
+
+```text
+new_candidate_price: 102
+new_candidate_ATR:   2.4
+
+new_threshold:       2.4 * 1.5 = 3.6
+```
+
+The high can now be confirmed on a later candle at a price of `98.4` or below:
+
+```text
+102 - 3.6 = 98.4
+```
+
+**Equal values and movement within a candle**
+
+Apply the agreed `REVERSAL_PERCENT` rules:
+
+- For equal extreme prices, select the latest candle.
+- Candidate updates take priority over confirmation.
+- An updated candidate can only be confirmed on a later candle.
+- Do not confirm a new opposite-kind candidate on the candle that creates it.
+
+For this method, repeating the price may change the threshold because the new candle's ATR may differ.
+
+With `HIGH_LOW`, these rules avoid assuming the order in which a candle reached its high and low.
+
+**Zero ATR**
+
+Do not confirm a candidate with zero ATR. A zero threshold must not turn a lack of movement into a reversal automatically.
+
+Keep tracking and updating the candidate using the normal rules. On an update, save the new candle's ATR. Confirmation becomes possible when the saved ATR is positive.
+
+**Result**
+
+Return only confirmed extrema. Do not include the final unconfirmed candidate.
+
+Each point contains:
+
+- Kind: `HIGH` or `LOW`.
+- Source candle index, starting at zero, and opening time.
+- Extremum price.
+- ATR saved at the candidate candle.
+- Reversal threshold in price units.
+- Confirmation candle index.
+- Confirmation time: the closing time of the confirmation candle.
+- Price that met the confirmation condition.
+
+The result also includes the common input parameters, `atr_period`, `atr_multiplier`, actual data boundaries, and all source candles used, including preparation history.
+
+Return points in chronological order. Keep the extremum time and confirmation time separate.
+
+**Validation and limitations**
+
+- Return a parameter error for invalid parameters or `candle_count < atr_period + 2`.
+- The received history must be complete and valid, with positive prices.
+- No confirmed points is a successful result with an empty list.
+- Do not detect extrema before the first ATR becomes available.
+- The time needed for confirmation is not known in advance.
+- The threshold reflects the candidate's ATR and does not follow later changes in volatility.
+- Changing the start of the history can affect both ATR and the extremum sequence.
+- Adding later candles does not change confirmed points when the history start, earlier source data, and parameters stay unchanged.
+
 ### Trend definition and method
 
 Fidelity defines trend through the direction of price peaks and troughs: rising peaks and troughs describe an uptrend; falling ones describe a downtrend; sideways movement remains in a horizontal range. This is a market definition, not a complete automated detector. Source: [Fidelity, Basic concepts of trend](https://www.fidelity.com/learning-center/trading-investing/technical-analysis/basic-concepts-trend).
