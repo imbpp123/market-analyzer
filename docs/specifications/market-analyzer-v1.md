@@ -1077,36 +1077,221 @@ This strict method evaluates the full extremum sequence in the selected range. A
 
 ### Support and resistance levels
 
-Support is a price area where demand can stop a fall; resistance is an area where supply can stop a rise. Their roles may change after a break. Source: [Fidelity, Support and resistance](https://www.fidelity.com/learning-center/trading-investing/technical-analysis/support-and-resistance).
+**Support** is a price area where demand can stop or slow a fall. **Resistance** is a price area where supply can stop or slow a rise. Source: [Fidelity, Support and resistance](https://www.fidelity.com/learning-center/trading-investing/technical-analysis/support-and-resistance).
 
-Proposed method: `pivot_zones_v1`. It finds horizontal candidate zones from repeated confirmed extrema. This is our explicit rule, not a claim to reproduce Fidelity's proprietary chart levels. Trend lines, Fibonacci levels, daily pivot-point formulas, and breakout confirmation are outside this method.
+The service finds horizontal price zones from repeated confirmed extrema. A zone has a lower and an upper bound. It groups peaks and troughs with similar prices.
 
-Required parameters:
+A detected zone is an analysis result for the selected data. It does not guarantee a future price reaction.
 
-| Parameter | Meaning and validation |
+#### Input data and parameters
+
+Common parameters:
+
+| Parameter | Description |
 | --- | --- |
-| `lookback_bars` | Detection window; at least `2 * pivot_span + 1` |
-| `pivot_span` | [Price extrema](#price-extrema) comparison span; at least 1 |
-| `atr_period` | Wilder period; at least 1 |
-| `atr_history_bars` | Total ATR source window; at least `atr_period + 1` |
-| `zone_width_atr` | Positive decimal multiplier for the latest ATR |
-| `min_touches` | Minimum distinct accepted pivot candles; at least 2 |
-| `min_touch_separation_bars` | Minimum source-index distance between accepted touches; at least 1 |
+| `exchange` | Exchange. |
+| `market` | Market. |
+| `symbol` | Trading instrument. |
+| `to` | End time for candle selection. |
+| `candle_count` | Total number of source candles, including calculation initialization. |
+| `interval` | Candle timeframe. |
 
-Fetch `max(lookback_bars, atr_history_bars)` closed candles once. Detection uses its `lookback_bars` suffix; ATR uses its `atr_history_bars` suffix. Return both ranges. Additional ATR candles are not level candidates.
+Select candles according to [Candle selection](#candle-selection).
 
-1. Find confirmed pivot highs and lows in the detection window using the [price extrema detector](#price-extrema).
-2. Set maximum zone width `w = zone_width_atr * latest_ATR` in price units.
-3. Sort all candidate prices ascending, breaking ties by candle index, then high before low.
-4. Start a group with the lowest remaining price `p`. Include consecutive prices at most `p + w`, then start the next group. Anchor each group at its first price; do not chain nearby prices into a zone wider than `w`.
-5. Within each group, scan distinct candidate candle indices in time order. Accept the first and then only indices at least `min_touch_separation_bars` after the last accepted index. Two extrema on one candle count as one touch. Keep all candidate evidence and mark which candles counted.
-6. Discard groups with fewer than `min_touches` accepted candles. A touch here means a qualifying pivot candle, not every candle whose wick intersects the zone.
-7. Set zone bounds to the group's minimum and maximum candidate prices, and representative price to their midpoint. Classify it as `SUPPORT` when the latest close is above its upper bound, `RESISTANCE` when below its lower bound, or `AT_PRICE` when inside the inclusive bounds.
-8. Return every retained zone in ascending price order, with bounds, midpoint, role, touch count, first and last accepted touch times, and candidate references.
+Extrema detection parameters:
 
-Return the ATR, its input range, multiplier, and resulting maximum width. Using NATR would be equivalent after converting it back to price units: `close * NATR / 100 = ATR`; no second volatility calculation is needed.
+| Parameter | Description |
+| --- | --- |
+| `price_source` | `CLOSE` or `HIGH_LOW`, as defined in [Price extrema](#price-extrema). |
+| Extrema detection method | `LOCAL_EXTREMA`, `REVERSAL_PERCENT`, or `REVERSAL_ATR`. |
+| Selected method parameters | Values defined for that method in [Price extrema](#price-extrema). |
 
-Zero ATR gives zero zone width and groups only equal prices. No eligible zones is a successful empty result. A historical high below the latest close may now be a support candidate; the response role describes current position, not a separately confirmed breakout or retest. Pivot count is evidence, not a probability that the zone will hold.
+The client provides extrema detection settings. The service calculates the extrema from the selected candles.
+
+Zone parameters:
+
+| Parameter | Description and constraints |
+| --- | --- |
+| `atr_period` | ATR period for zone width. An integer of at least `1`. |
+| `zone_width_atr` | ATR multiplier that defines the maximum zone width. A positive decimal value. |
+| `min_touches` | Minimum number of accepted touches required to keep a zone. An integer of at least `2`. |
+| `min_touch_separation_bars` | Minimum distance in candles between accepted touches in one zone. An integer of at least `1`. |
+
+All parameters are required. The `candle_count` must meet the selected extrema method requirements and be at least `atr_period + 1`.
+
+#### Data preparation
+
+Use one set of selected candles:
+
+1. Detect confirmed extrema according to [Price extrema](#price-extrema).
+2. Calculate the latest ATR according to [ATR and NATR](#atr-and-natr).
+3. Use the last source candle close as the reference price for zone roles.
+
+The ATR for zone width always uses the source OHLC values, regardless of `price_source`.
+
+With `REVERSAL_ATR`, the ATR period for extrema may differ from the ATR period for zone width. If both periods and source histories match, the ATR calculation can be reused.
+
+Do not fetch extra candles outside the selected range. All calculations and comparisons follow [Numerical rules](#numerical-rules).
+
+#### Maximum zone width
+
+Calculate the maximum width in price units:
+
+```text
+maximum_zone_width = latest_ATR * zone_width_atr
+```
+
+For example:
+
+```text
+latest_ATR = 2
+zone_width_atr = 0.5
+maximum_zone_width = 1
+```
+
+In this example, the difference between the highest and lowest extrema prices in one zone cannot exceed `1`.
+
+Use the same maximum width, based on the latest ATR, for all zones in one calculation.
+
+#### Grouping extrema into zones
+
+All confirmed peaks and troughs take part in grouping. They can belong to the same zone. Keep the kind of each extremum in the result.
+
+Group them as follows:
+
+1. Sort extrema by price in ascending order.
+2. For equal prices, sort by source candle index. For equal prices and indices, put the peak before the trough.
+3. Start a group with the lowest-priced remaining extremum. Its price `p` is the fixed group anchor.
+4. Add following extrema while their price is at most `p + maximum_zone_width`.
+5. The first extremum above this boundary starts the next group.
+6. Repeat until all extrema are processed.
+
+The group anchor does not change when points are added.
+
+For example, with a maximum width of `1`:
+
+```text
+Extrema prices: 100, 100.75, 101.5
+
+First group: 100, 100.75
+Second group: 101.5
+```
+
+The points at `100.75` and `101.5` are close, but belong to different groups. Adding the last point to the first group would increase its width to `1.5`.
+
+Each extremum belongs to only one group.
+
+#### Counting touches
+
+**A touch in this method is a confirmed extremum that passes the minimum spacing rule.** A candle crossing the zone does not count as a separate touch by itself.
+
+For each group:
+
+1. Collect the unique candle indices of its extrema.
+2. Process the indices from oldest to newest.
+3. Accept the first candle.
+4. Accept the next candle only if its index minus the last accepted candle index is at least `min_touch_separation_bars`.
+
+For example:
+
+```text
+Candle indices: 10, 12, 16, 23
+min_touch_separation_bars = 5
+
+Accepted touches: 10, 16, 23
+Touch count: 3
+```
+
+If a peak and a trough from the same candle belong to one group, that candle counts as one touch.
+
+A peak and a trough from different candles can count as two touches in one zone if they meet the spacing rule.
+
+Extrema excluded from the touch count by the spacing rule remain in the group and affect its bounds. The spacing rule only affects the touch count.
+
+Keep a group as a zone when its accepted touch count is at least `min_touches`. Discard other groups.
+
+#### Bounds and representative price
+
+For each retained group:
+
+```text
+lower_bound = minimum price of all extrema in the group
+upper_bound = maximum price of all extrema in the group
+representative_price = (lower_bound + upper_bound) / 2
+```
+
+The representative price is the zone midpoint. A client can use it to display the zone as one line.
+
+All extrema in the group define its bounds, including those whose candles did not count as separate touches.
+
+The actual width can be smaller than the maximum width. Do not expand the zone artificially. If all prices are equal, both bounds and the representative price are equal.
+
+#### Zone role
+
+Determine the role from the last source candle close:
+
+| Condition | Role |
+| --- | --- |
+| Last close is above the upper bound | `SUPPORT`. |
+| Last close is below the lower bound | `RESISTANCE`. |
+| Last close is inside the zone, including its bounds | `AT_PRICE`. |
+
+For a zone from `100` to `101`:
+
+```text
+Last close 105   → SUPPORT
+Last close 98    → RESISTANCE
+Last close 100.5 → AT_PRICE
+```
+
+The role describes the zone position relative to the last close. The method does not separately confirm a breakout, bounce, or retest.
+
+A zone formed from historical peaks can therefore have the `SUPPORT` role when the last close is above it.
+
+#### Result
+
+Return all retained zones in ascending price order.
+
+For each zone, return:
+
+- Lower and upper bounds.
+- Representative price.
+- Role: `SUPPORT`, `RESISTANCE`, or `AT_PRICE`.
+- Accepted touch count.
+- Opening times of the first and last accepted touch candles.
+- References to all extrema in the group, keeping their kinds.
+- Candle indices accepted as touches, to distinguish them from other points in the group.
+
+The common result contains:
+
+- Instrument identity and candle selection parameters.
+- Actual source time boundaries.
+- Extrema method and parameters, including `price_source`.
+- Confirmed extrema used in grouping.
+- Zone parameters.
+- Latest ATR value and its period.
+- Calculated maximum zone width.
+- Reference price: the last close.
+- All source candles used in the calculations, including ATR initialization.
+
+The touch count shows the number of confirmed interactions under this method's rules. It is not the probability that the zone will hold.
+
+#### Validation and edge cases
+
+Before fetching data, validate required parameters, their values, and the minimum candle count for the selected calculations.
+
+After fetching data, validate the completeness and correctness of the source data according to the common document rules.
+
+Additional rules:
+
+- Group only confirmed extrema. Do not use unfinished candidates.
+- Include an extremum exactly at `p + maximum_zone_width` in the current group.
+- A distance exactly equal to `min_touch_separation_bars` allows a touch to count.
+- Zero ATR gives zero maximum width: only extrema with equal prices are grouped together.
+- No extrema, or no groups with enough touches, gives a successful result with an empty zone list.
+- Insufficient or invalid source data causes an error.
+
+New candles can change the latest ATR. A later calculation can therefore change the grouping of historical extrema, zone bounds, and zone roles. Zones are not guaranteed to remain unchanged across different source selections.
 
 ## Data Model / API / Interfaces
 
