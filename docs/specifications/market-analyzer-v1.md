@@ -768,6 +768,63 @@ Return points in chronological order. Keep the extremum time and confirmation ti
 - Changing the start of the history can affect both ATR and the extremum sequence.
 - Adding later candles does not change confirmed points when the history start, earlier source data, and parameters stay unchanged.
 
+#### Common result
+
+The indicator returns:
+
+- The selected calculation method.
+- Common input parameters and method parameters.
+- Actual source data boundaries.
+- All source candles used, including preparation history.
+- A list of confirmed extrema.
+
+Each point contains:
+
+| Field | Content |
+| --- | --- |
+| Kind | `HIGH` or `LOW`. |
+| Source candle index | Position of the extremum candle in the returned list, starting at zero. |
+| Extremum time | Opening time of the source candle. |
+| Extremum price | Value from the selected source: `close`, `high`, or `low`. |
+| Confirmation candle index | Position of the candle that completed confirmation. |
+| Confirmation time | Closing time of the confirmation candle. |
+
+Keep the extremum time and confirmation time separate: a point occurs before enough data becomes available to confirm it.
+
+The `REVERSAL_PERCENT` and `REVERSAL_ATR` methods also return:
+
+- The reversal threshold in price units.
+- The price that met the confirmation condition.
+
+The `REVERSAL_ATR` method also returns the ATR saved at the candidate candle.
+
+Sort points by source candle time. In `LOCAL_EXTREMA`, if one candle contains both kinds of extrema, return `HIGH` before `LOW`. This is the record order, not the order of price events within the candle.
+
+Do not return unconfirmed candidates. No confirmed extrema is a successful result with an empty list.
+
+#### Common validation
+
+Before calling Market Data, check:
+
+- All required parameters are present.
+- The `price_source` value is supported.
+- The selected method's parameters are valid.
+- The requested `candle_count` meets the method's minimum candle requirement.
+
+After receiving data, check:
+
+- The data matches the requested exchange, market, instrument, timeframe, and selected range.
+- All requested candles are present, with no gaps or duplicates.
+- Candles are in chronological order.
+- Candle time boundaries are valid.
+- Prices are positive and OHLC values are valid: `low <= open <= high` and `low <= close <= high`.
+
+Return an error for invalid parameters or data. Do not replace that error with a successful empty list of extrema.
+
+Use only the selected history. Do not use candles that close after the requested `to` to confirm a point.
+
+Preserve source values according to the [numerical rules](#numerical-rules). All source and confirmation candle indices in the result must refer to the returned candle list.
+
 ### Trend definition and method
 
 Fidelity defines trend through the direction of price peaks and troughs: rising peaks and troughs describe an uptrend; falling ones describe a downtrend; sideways movement remains in a horizontal range. This is a market definition, not a complete automated detector. Source: [Fidelity, Basic concepts of trend](https://www.fidelity.com/learning-center/trading-investing/technical-analysis/basic-concepts-trend).
