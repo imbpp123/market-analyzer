@@ -36,6 +36,24 @@ Minimal local launch:
 MARKET_DATA_ENDPOINT=localhost:9090 go run ./cmd/market-analyzer
 ```
 
+Container launch for Market Data and Market Analyzer:
+
+```sh
+docker compose up --build
+```
+
+The compose stack uses the digest-pinned `ghcr.io/imbpp123/market-data:1.0.1`
+image, matching the pinned Market Data client contract. The upstream image is
+`linux/amd64`; ARM hosts use container emulation. Both services run with a
+read-only filesystem, all Linux capabilities dropped, and host ports bound to
+`127.0.0.1`.
+
+Stop the stack within the configured shutdown bounds:
+
+```sh
+docker compose down --timeout 40
+```
+
 ## Operations
 
 The HTTP listener has no analysis routes.

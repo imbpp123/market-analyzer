@@ -2,15 +2,35 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/imbpp123/market-analyzer/internal/service"
 )
 
 func main() {
+	healthcheck, err := healthcheckRequested(os.Args[1:])
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	if healthcheck {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		client := &http.Client{Transport: &http.Transport{Proxy: nil}}
+		err := checkHealth(ctx, os.Getenv, client)
+		cancel()
+		if err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	config, err := service.ConfigFromEnv(os.Getenv)
 	if err != nil {

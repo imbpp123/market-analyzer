@@ -1,0 +1,47 @@
+name: market-analyzer
+
+services:
+  market-data-service:
+    image: ghcr.io/imbpp123/market-data:1.0.1
+    platform: linux/amd64
+    ports:
+      - "127.0.0.1:9090:9090"
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - type: bind
+        source: ./config/market-data.yaml
+        target: /etc/market-data/config.yaml
+        read_only: true
+        bind:
+          create_host_path: false
+    environment:
+      MDS_STORAGE_DRIVER: memory
+      GOMEMLIMIT: 700MiB
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 1000000000
+    memswap_limit: 1000000000
+    stop_grace_period: 40s
+    restart: "no"
+
+  market-analyzer-service:
+    image: market-analyzer:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:9091:9091"
+      - "127.0.0.1:8081:8081"
+    environment:
+      MARKET_DATA_ENDPOINT: market-data-service:9090
+      MARKET_ANALYZER_GRPC_ADDRESS: :9091
+      MARKET_ANALYZER_HTTP_ADDRESS: :8081
+    depends_on:
+      market-data-service:
+        condition: service_healthy
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 40s
+    restart: "no"

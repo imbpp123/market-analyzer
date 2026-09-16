@@ -1,0 +1,3 @@
+# Market Data v1 uses its documented defaults. Compose overrides the storage
+# driver explicitly so the local stack keeps no state after shutdown.
+{}

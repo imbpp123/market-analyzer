@@ -1,1 +1,4 @@
 /.bin/
+/docs/validation/config.local.json
+/validation-report.json
+/load-report.json

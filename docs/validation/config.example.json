@@ -1,0 +1,33 @@
+{
+  "analyzer_endpoint": "localhost:9091",
+  "timeout": "30s",
+  "max_response_bytes": 33554432,
+  "build_revision": "",
+  "upstream_contract_version": "v0.0.0-20260913191535-4e5ce32a4847",
+  "selection": {
+    "exchange": "binance",
+    "market": "spot",
+    "symbol": "BTCUSDT",
+    "to": "2026-09-15T14:02:30Z",
+    "candle_count": 300,
+    "interval": "1m"
+  },
+  "settings": {
+    "atr_period": 14,
+    "pivot_span": 3,
+    "reversal_pct": "2",
+    "reversal_atr_period": 14,
+    "reversal_atr_multiplier": "1.5",
+    "equality_tolerance_pct": "0.1",
+    "level_atr_period": 14,
+    "zone_width_atr": "0.5",
+    "min_touches": 2,
+    "min_touch_separation_bars": 5
+  },
+  "runtime_settings": {
+    "request_timeout": "30s",
+    "max_request_bytes": 65536,
+    "market_data_max_response_bytes": 16777216,
+    "max_response_bytes": 33554432
+  }
+}
