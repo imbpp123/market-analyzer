@@ -1,8 +1,12 @@
 # Release validation
 
-Phase 5 uses a separate live command and benchmark suite. Unit tests do not call external services.
+Release validation uses a separate live command and benchmark suite. Unit tests
+do not call external services.
 
-The completed local release run is recorded in the [Phase 5 release validation report](2026-09-16-final.md). The [initial report](2026-09-16-initial.md) records the earlier blocked state before a live dependency was available.
+The completed local run is recorded in the
+[release validation report](2026-09-16-final.md). The
+[initial report](2026-09-16-initial.md) records the earlier blocked state before
+a live dependency was available.
 
 ## Live correctness matrix
 
