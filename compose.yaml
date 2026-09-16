@@ -2,7 +2,7 @@ name: market-analyzer
 
 services:
   market-data-service:
-    image: ghcr.io/imbpp123/market-data:1.0.1
+    image: ghcr.io/imbpp123/market-data:1.0.1@sha256:82434358df59298450120ade2f89339c39514720ae935f90103de122f133eaaa
     platform: linux/amd64
     ports:
       - "127.0.0.1:9090:9090"

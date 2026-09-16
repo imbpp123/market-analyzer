@@ -2,6 +2,8 @@
 
 Phase 5 uses a separate live command and benchmark suite. Unit tests do not call external services.
 
+The completed local release run is recorded in the [Phase 5 release validation report](2026-09-16-final.md). The [initial report](2026-09-16-initial.md) records the earlier blocked state before a live dependency was available.
+
 ## Live correctness matrix
 
 Copy `config.example.json` to an ignored local file. Set a historical `to` value that is available in the test Market Data instance. Record the actual service runtime settings and pinned Market Data contract version in the same file.

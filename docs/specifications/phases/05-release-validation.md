@@ -1,6 +1,6 @@
 # Phase 5: Release validation
 
-Status: in progress. Dependency: [Phase 4](04-service-integration.md).
+Status: complete. Dependency: [Phase 4](04-service-integration.md).
 
 ## Summary
 
@@ -61,4 +61,4 @@ Completion requires:
 
 If real dependency access is unavailable, record that check as blocked. Do not replace it with a fake run and mark the phase complete.
 
-Implementation status: the repeatable live RPC matrix, invariant checks, full JSON evidence report, domain benchmarks, full response benchmarks, and generated-code reproducibility command are implemented. See [Release validation](../../validation/README.md) and the [initial report](../../validation/2026-09-16-initial.md). Live dependency checks, controlled concurrent load, server resource measurements, and shutdown under load remain blocked until a test endpoint is supplied.
+Completion evidence: the repeatable live RPC matrix, invariant checks, concurrent load tool, full JSON reports, domain benchmarks, full response benchmarks, transport checks, cancellation and shutdown checks, and generated-code reproducibility check passed. See [Release validation](../../validation/README.md) and the [final report](../../validation/2026-09-16-final.md).

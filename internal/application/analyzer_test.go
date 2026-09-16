@@ -195,6 +195,26 @@ func TestAnalyzerUsesEarlierClientDeadline(t *testing.T) {
 	assert.WithinDuration(t, clientDeadline, <-deadlineSeen, time.Millisecond)
 }
 
+func TestAnalyzerUsesDefaultDeadlineWithoutClientDeadline(t *testing.T) {
+	deadlineSeen := make(chan time.Time, 1)
+	reader := &fakeReader{read: func(ctx context.Context, _ domain.Instrument, _ domain.Interval, _ domain.CandleRange) (SourceSeries, error) {
+		deadline, ok := ctx.Deadline()
+		require.True(t, ok)
+		deadlineSeen <- deadline
+		return SourceSeries{}, context.DeadlineExceeded
+	}}
+	timeout := 20 * time.Second
+	analyzer, err := NewAnalyzer(reader, fixedClock{now: time.Date(2026, 1, 2, 12, 30, 0, 0, time.UTC)}, timeout)
+	require.NoError(t, err)
+	selection := validSelection()
+	expectedDeadline := time.Now().Add(timeout)
+
+	_, err = analyzer.GetATR(t.Context(), ATRRequest{Selection: &selection, Settings: &ATRSettings{Period: 3}})
+
+	assertError(t, err, RequestTimeout, "")
+	assert.WithinDuration(t, expectedDeadline, <-deadlineSeen, 100*time.Millisecond)
+}
+
 func validSelection() Selection {
 	return Selection{Exchange: "binance", Market: "spot", Symbol: "BTCUSDT", To: time.Date(2026, 1, 2, 12, 7, 30, 0, time.UTC), CandleCount: 7, Interval: "1m"}
 }

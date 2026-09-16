@@ -1,6 +1,7 @@
 package releasevalidation
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -47,6 +48,19 @@ func TestRunLoadRejectsInvalidOptions(t *testing.T) {
 			assert.Contains(t, err.Error(), testCase.error)
 		})
 	}
+}
+
+func TestRunLoadRecordsFailuresAndContinues(t *testing.T) {
+	client := &fakeAnalyzerClient{atrErr: errors.New("dependency failed")}
+
+	report, err := RunLoad(t.Context(), client, testConfig(), LoadOptions{Concurrency: 2, Requests: 20}, time.Now)
+
+	require.Error(t, err)
+	assert.Equal(t, int64(20), client.calls.Load())
+	assert.Equal(t, 19, report.Summary.Passed)
+	assert.Equal(t, 1, report.Summary.Failed)
+	assert.Equal(t, 1, report.Summary.Statuses["Unknown"])
+	assert.Contains(t, report.Results[0].Error, "dependency failed")
 }
 
 func TestSummarizeLoadUsesNearestRankPercentiles(t *testing.T) {
