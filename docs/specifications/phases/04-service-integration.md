@@ -1,6 +1,6 @@
 # Phase 4: Service integration
 
-Status: planned. Dependency: [Phase 3](03-api-and-use-cases.md).
+Status: complete. Dependency: [Phase 3](03-api-and-use-cases.md).
 
 ## Summary
 
@@ -56,6 +56,8 @@ Use a local fake Market Data gRPC server with the real generated upstream messag
 Use ephemeral local ports, synchronization, and bounded contexts in tests. Isolate lifecycle logic for deterministic unit tests, then verify actual listeners in integration tests. Do not infer shutdown correctness from a mocked method call alone.
 
 ## Completion criteria
+
+Implementation and verification: [Service integration](../../service-integration.md). The pinned Market Data adapter, process configuration, operational HTTP server, bounded metrics and logs, listener lifecycle, and bounded shutdown are covered by local integration tests.
 
 The service builds and runs with a configured Market Data endpoint. Local integration and lifecycle tests pass, including race checks. Run instructions and all settings are documented. Actual dependency data and load measurements are covered in phase 5; local fakes alone do not complete that phase.
 

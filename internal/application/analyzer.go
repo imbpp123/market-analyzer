@@ -13,12 +13,17 @@ import (
 var plainDecimal = regexp.MustCompile(`^[+-]?[0-9]+(?:\.[0-9]+)?$`)
 
 type Analyzer struct {
-	reader  CandleReader
-	clock   Clock
-	timeout time.Duration
+	reader   CandleReader
+	clock    Clock
+	timeout  time.Duration
+	observer CalculationObserver
 }
 
 func NewAnalyzer(reader CandleReader, clock Clock, timeout time.Duration) (*Analyzer, error) {
+	return NewAnalyzerWithObserver(reader, clock, timeout, nil)
+}
+
+func NewAnalyzerWithObserver(reader CandleReader, clock Clock, timeout time.Duration, observer CalculationObserver) (*Analyzer, error) {
 	if reader == nil {
 		return nil, &Error{Kind: InvalidParameter, Field: "reader", Err: errors.New("reader is required")}
 	}
@@ -31,7 +36,7 @@ func NewAnalyzer(reader CandleReader, clock Clock, timeout time.Duration) (*Anal
 		return nil, &Error{Kind: InvalidParameter, Field: "timeout", Err: errors.New("timeout must be positive")}
 	}
 
-	return &Analyzer{reader: reader, clock: clock, timeout: timeout}, nil
+	return &Analyzer{reader: reader, clock: clock, timeout: timeout, observer: observer}, nil
 }
 
 func (a *Analyzer) GetATR(ctx context.Context, request ATRRequest) (ATRResponse, error) {
@@ -46,7 +51,9 @@ func (a *Analyzer) GetATR(ctx context.Context, request ATRRequest) (ATRResponse,
 	}
 	defer prepared.cancel()
 
+	started := time.Now()
 	result, err := domain.CalculateATR(prepared.ctx, prepared.series, settings)
+	a.observeCalculation("atr", time.Since(started))
 	if err != nil {
 		return ATRResponse{}, calculationError(err)
 	}
@@ -66,7 +73,9 @@ func (a *Analyzer) GetNATR(ctx context.Context, request NATRRequest) (NATRRespon
 	}
 	defer prepared.cancel()
 
+	started := time.Now()
 	result, err := domain.CalculateNATR(prepared.ctx, prepared.series, settings)
+	a.observeCalculation("natr", time.Since(started))
 	if err != nil {
 		return NATRResponse{}, calculationError(err)
 	}
@@ -86,7 +95,9 @@ func (a *Analyzer) GetExtrema(ctx context.Context, request ExtremaRequest) (Extr
 	}
 	defer prepared.cancel()
 
+	started := time.Now()
 	result, err := domain.DetectExtrema(prepared.ctx, prepared.series, settings.domain)
+	a.observeCalculation("extrema", time.Since(started))
 	if err != nil {
 		return ExtremaResponse{}, calculationError(err)
 	}
@@ -106,7 +117,9 @@ func (a *Analyzer) GetTrend(ctx context.Context, request TrendRequest) (TrendRes
 	}
 	defer prepared.cancel()
 
+	started := time.Now()
 	result, err := domain.CalculateTrend(prepared.ctx, prepared.series, settings.domain)
+	a.observeCalculation("trend", time.Since(started))
 	if err != nil {
 		return TrendResponse{}, calculationError(err)
 	}
@@ -127,13 +140,21 @@ func (a *Analyzer) GetLevels(ctx context.Context, request LevelsRequest) (Levels
 	}
 	defer prepared.cancel()
 
+	started := time.Now()
 	result, err := domain.CalculateLevels(prepared.ctx, prepared.series, settings.domain)
+	a.observeCalculation("levels", time.Since(started))
 	if err != nil {
 		return LevelsResponse{}, calculationError(err)
 	}
 
 	algorithms := uniqueAlgorithms(append(extremaAlgorithms(settings.domain.Extrema), domain.WilderATRVersion, domain.ZonesVersion))
 	return LevelsResponse{Metadata: prepared.metadata(algorithms), Candles: prepared.source, Settings: settings.application, Result: result}, nil
+}
+
+func (a *Analyzer) observeCalculation(name string, duration time.Duration) {
+	if a.observer != nil {
+		a.observer.ObserveCalculation(name, duration)
+	}
 }
 
 type preparedAnalysis struct {

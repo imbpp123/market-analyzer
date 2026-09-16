@@ -9,7 +9,7 @@ PROTO_INCLUDE ?= $(dir $(shell command -v protoc))../include
 .PHONY: fmt generate-tools generate build vet test race lint check
 
 fmt:
-	gofmt -w internal
+	gofmt -w cmd internal
 
 generate-tools:
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@$(PROTOC_GEN_GO_VERSION)
@@ -41,5 +41,5 @@ lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run
 
 check: build vet test race lint
-	test -z "$$(gofmt -l internal)"
+	test -z "$$(gofmt -l cmd internal)"
 	git diff --check

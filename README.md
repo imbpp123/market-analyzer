@@ -4,14 +4,14 @@ A planned stateless gRPC service for technical analysis of market data.
 It calculates indicators, identifies trends, and finds support and resistance levels.
 Version 1 uses candles from Market Data to calculate ATR, NATR, price extrema, global and local trends, and horizontal support and resistance levels.
 
-Phases 1 through 3 implement the domain, typed application use cases, and the generated gRPC API. Calculations run on one validated in-memory candle set per request. The real Market Data adapter and runnable service are not implemented yet.
+Phases 1 through 4 implement the domain, typed application use cases, generated gRPC API, Market Data adapter, and runnable service. Calculations run on one validated in-memory candle set per request.
 
 ## Development
 
 Use Go `1.27.1`, matching the Market Data client module at commit
 `4e5ce32a4847738e99e786e342054cbbced632c5` (`api/go/go.mod`).
 The module pins `shopspring/decimal v1.4.0` and `testify v1.11.1`.
-The upstream client is not a dependency until service integration.
+The Market Data client is pinned to that reviewed commit.
 
 ```sh
 go mod download
@@ -34,3 +34,4 @@ and Git whitespace checks. If the default Go build cache is not writable, set
 - [Domain foundation](docs/domain-foundations.md): package contracts, validation, and verification.
 - [Domain calculations](docs/domain-calculations.md): calculation entry points, evidence, ownership, and verification.
 - [API and use cases](docs/api-and-use-cases.md): application flow, gRPC boundary, generation, and verification.
+- [Service integration](docs/service-integration.md): configuration, launch, operational endpoints, metrics, and shutdown.

@@ -14,6 +14,10 @@ type Clock interface {
 	Now() time.Time
 }
 
+type CalculationObserver interface {
+	ObserveCalculation(name string, duration time.Duration)
+}
+
 type CandleReader interface {
 	ReadCandles(context.Context, domain.Instrument, domain.Interval, domain.CandleRange) (SourceSeries, error)
 }
