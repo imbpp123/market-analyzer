@@ -1,6 +1,6 @@
-# Phase 6: Release validation
+# Phase 5: Release validation
 
-Status: planned. Dependency: [Phase 5](05-service-integration.md).
+Status: planned. Dependency: [Phase 4](04-service-integration.md).
 
 ## Summary
 
@@ -15,7 +15,7 @@ This phase needs a reachable test Market Data instance with complete candle hist
 ## Implementation and validation work
 
 1. Add a repeatable end-to-end test command using the generated Analyzer client. Accept the test endpoint and instrument selection through explicit test configuration. Keep live dependency tests separate from unit tests.
-2. Run every RPC, every extrema method, and both price sources against test Market Data. Save the request settings, raw response data, build revision, upstream contract and shared library versions, and effective runtime settings in the test report or associated fixtures.
+2. Run every RPC, every extrema method, and both price sources against test Market Data. Save the request settings, raw response data, build revision, upstream contract version, and effective runtime settings in the test report or associated fixtures.
 3. Verify source identity, actual boundaries, raw fidelity, result metadata, and all evidence references. Use deterministic expected fixtures for numerical correctness; a live response that merely succeeds is not proof of the algorithm.
 4. Add Go benchmarks for domain calculations and full response construction. Measure allocations and time for different depths and numeric sizes. Include extrema-rich data that produces large evidence lists and wide zones with many candidate references.
 5. Run a controlled concurrent workload against the service. Measure end-to-end and upstream latency separately, CPU, memory, throughput, statuses, and response bytes. Observe cancellation and shutdown while work is active.

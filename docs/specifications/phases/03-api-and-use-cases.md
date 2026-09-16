@@ -1,10 +1,10 @@
-# Phase 4: API and use cases
+# Phase 3: API and use cases
 
-Status: planned. Dependency: [Phase 3](03-calculations.md).
+Status: planned. Dependency: [Phase 2](02-calculations.md).
 
 ## Summary
 
-Expose the domain calculations through typed application use cases and a generated gRPC contract. Use a fake candle reader until the real adapter is added in phase 5.
+Expose the domain calculations through typed application use cases and a generated gRPC contract. Use a fake candle reader until the real adapter is added in phase 4.
 
 ## Context and goals
 
@@ -12,17 +12,17 @@ Implement [API / Interfaces](../market-analyzer-v1.md#api--interfaces), [Request
 
 ## Implementation work
 
-1. Add application-owned request, response, and error types under `internal/application`. Define the consumer-owned `CandleReader` boundary and inject it with a clock. The reader accepts a planned range and returns source records or a typed dependency error.
-2. Implement the five use cases. Validate settings, capture request time, plan one range, load it once, validate decoded source data, run domain calculations, and assemble the typed result. Do not fetch separate histories for nested calculations.
-3. Use the shared source records and parsed `market.Kline` values delivered by the reader in matching order. The real reader will use the phase 1 converters; application code does not parse upstream values again. Fake readers return the same plain shared types. Preserve source timestamps and optional fields, and build evidence without duplicating arrays.
+1. Add application-owned request, response, source record, and error types under `internal/application`. Define the consumer-owned `CandleReader` boundary and inject it with a clock. The reader accepts a planned range and returns source records or a typed dependency error.
+2. Implement the five use cases. Validate settings, capture request time, plan one range, load it once, validate and parse source data, run domain calculations, and assemble the typed result. Do not fetch separate histories for nested calculations.
+3. Keep original `SourceCandle` values and parsed domain candles in matching order. Parse numerical source fields once. Preserve timestamps and missing optional fields. Build evidence references without duplicating source arrays.
 4. Apply the effective request deadline and propagate cancellation through reads and calculations. Check requested future ranges against the injected clock without replacing the client's `to`.
 5. Define `marketanalyzer.v1.MarketAnalyzerService` under `api/proto/marketanalyzer/v1`, with the five RPCs specified in the main document. Generate Go messages and client/server bindings under `api/go/marketanalyzer/v1`. Pin generators and document regeneration commands.
 6. Represent extrema settings with a `oneof`. Use required field presence and distinguish the ATR period for extrema from the ATR period for level width. Add typed results, method-specific evidence, and common metadata.
-7. Add gRPC mapping and handlers under `internal/transport/grpc`. Keep generated messages and `marketgrpc` out of application and domain packages. Analyzer owns conversion of its analysis-specific results to its own Protobuf contract; upstream model conversions are not reimplemented here. Map validation and dependency errors to the specified statuses and details.
+7. Add gRPC mapping and handlers under `internal/transport/grpc`. Keep generated messages out of application and domain packages. Map validation and dependency errors to the specified statuses and details.
 8. Assemble algorithm identifiers, numeric policy, source boundaries, requested selection, and `evaluated_at`. Format derived values only at the response boundary. Preserve source-derived prices from their original records.
 9. Check the full serialized response against the configured limit before sending. Configure transport receive and send limits. Handlers must not truncate successful results.
 
-Use the service's existing module structure if one is established in phase 2. Do not create an extra Go module only to hold generated code. A live Market Data adapter, process startup, and HTTP listeners belong to phase 5.
+Use the service's existing module structure if one is established in phase 1. Do not create an extra Go module only to hold generated code. A live Market Data adapter, process startup, and HTTP listeners belong to phase 4.
 
 ## Application test cases
 
@@ -64,4 +64,4 @@ Test size boundaries with small test-specific limits and measured Protobuf sizes
 
 A generated Go client can call all five RPCs on a test server. Application and transport tests pass with the real domain calculations. Regeneration produces no unexpected diff. No upstream generated type crosses the application boundary.
 
-Next: [Phase 5](05-service-integration.md).
+Next: [Phase 4](04-service-integration.md).

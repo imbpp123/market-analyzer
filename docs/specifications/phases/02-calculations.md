@@ -1,6 +1,6 @@
-# Phase 3: Calculations
+# Phase 2: Calculations
 
-Status: planned. Dependency: [Phase 2](02-domain-foundations.md).
+Status: planned. Dependency: [Phase 1](01-domain-foundations.md).
 
 ## Summary
 
@@ -12,7 +12,7 @@ Use the calculation sections in the main specification as the source of truth: [
 
 ## Implementation work
 
-1. Use shared `market.Kline` values from phase 2 as calculation input; do not add a parallel candle model. Implement result values and evidence references from [Calculation results](../market-analyzer-v1.md#calculation-results). Keep candle indices and extrema indices distinct. Derive times from the referenced series.
+1. Implement result values and evidence references from [Calculation results](../market-analyzer-v1.md#calculation-results). Keep candle indices and extrema indices distinct. Derive times from the referenced series.
 2. Implement Wilder ATR once. Its internal sequence begins at candle index `period`; earlier entries are unavailable, not zero. Add latest-value access and NATR normalization from the intermediate ATR.
 3. Implement strict neighboring extrema for both price sources. Preserve point order and confirmation references.
 4. Implement percentage reversal as an explicit candidate state machine. Handle unknown initial direction, candidate updates, last equal candidate selection, later-candle confirmation, and alternating confirmed points.
@@ -22,7 +22,7 @@ Use the calculation sections in the main specification as the source of truth: [
 8. Provide concrete composition helpers where needed for shared ATR calculation. Reuse a sequence only for matching period and history within a single calculation. Do not add a global cache or interfaces around every function.
 9. Honor cancellation during long scans and grouping work. Preserve input slices and return results that do not expose mutable internal state shared across calls.
 
-Keep calculation helpers in the domain. Application orchestration and public source serialization are phase 4 work.
+Keep calculation helpers in the domain. Application orchestration and public source serialization are phase 3 work.
 
 ## Test cases: ATR and extrema
 
@@ -79,4 +79,4 @@ Build direct point fixtures for classifier and grouping rules, plus full candle 
 
 All five analyses and all three extrema methods pass domain tests and shared checks. Every state and reason has coverage. No RPC, external reader, or runtime listener is required to run the calculations.
 
-Next: [Phase 4](04-api-and-use-cases.md).
+Next: [Phase 3](03-api-and-use-cases.md).

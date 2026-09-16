@@ -1,6 +1,6 @@
-# Phase 5: Service integration
+# Phase 4: Service integration
 
-Status: planned. Dependency: [Phase 4](04-api-and-use-cases.md).
+Status: planned. Dependency: [Phase 3](03-api-and-use-cases.md).
 
 ## Summary
 
@@ -12,8 +12,8 @@ Implement the adapter from [Application and Market Data boundary](../market-anal
 
 ## Implementation work
 
-1. Pin compatible Market Data Go client, `pkg/market`, and `pkg/marketgrpc` versions from the phase 1 handoff. Implement `CandleReader` under `internal/infrastructure/marketdata` using `GetKlines`. Map exact selectors and planned boundaries; make no ticker preflight call or application retry loop.
-2. Call the shared `marketgrpc` decoders for upstream data and return shared parsed models plus source records. Do not duplicate field-by-field upstream conversion. Map typed conversion failures to invalid Market Data errors. Keep upstream RPC status/detail mapping in this adapter, without parsing human-readable text.
+1. Pin the reviewed Market Data Go client version. Implement `CandleReader` under `internal/infrastructure/marketdata` using `GetKlines`. Map exact selectors and planned boundaries; make no ticker preflight call or application retry loop.
+2. Convert all upstream fields to application-owned source records, preserving decimal strings, timestamps, and optional presence. Convert upstream errors by status and structured details without parsing message text.
 3. Reuse one upstream gRPC connection across independent requests. Configure the receive limit and propagate each caller's context. Let the process own connection cleanup.
 4. Add `cmd/market-analyzer` as the entry point and construct domain/application, adapter, and transport dependencies there. Keep configuration loading and environment access outside calculation code.
 5. Add validated startup settings for gRPC and HTTP addresses, Market Data endpoint, request and shutdown timeouts, and transport sizes. Use the initial defaults in the specification. Reject invalid settings and listener failures with clear startup errors.
@@ -29,7 +29,7 @@ Use a local fake Market Data gRPC server with the real generated upstream messag
 | Case | Expected result |
 | --- | --- |
 | Valid planned range | Exact exchange, market, symbol, interval, and `[from, to)` reach `GetKlines`. |
-| Valid Kline response | Shared converter output reaches the application unchanged, including raw text, missing versus zero trades, and timestamp precision. Exhaustive per-field converter cases remain in Market Data module tests. |
+| Valid Kline response | Every source field preserved, including missing versus zero trades and timestamp precision. |
 | Invalid successful response | Application validation rejects it; adapter does not repair fields or order. |
 | Each documented upstream status and reason | Expected application error and final Analyzer status/details. |
 | Missing, unknown, or unrelated status details | Stable category handling without panic or message parsing. |
@@ -57,6 +57,6 @@ Use ephemeral local ports, synchronization, and bounded contexts in tests. Isola
 
 ## Completion criteria
 
-The service builds and runs with a configured Market Data endpoint. Local integration and lifecycle tests pass, including race checks. Run instructions and all settings are documented. Actual dependency data and load measurements are covered in phase 6; local fakes alone do not complete that phase.
+The service builds and runs with a configured Market Data endpoint. Local integration and lifecycle tests pass, including race checks. Run instructions and all settings are documented. Actual dependency data and load measurements are covered in phase 5; local fakes alone do not complete that phase.
 
-Next: [Phase 6](06-release-validation.md).
+Next: [Phase 5](05-release-validation.md).

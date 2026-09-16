@@ -45,7 +45,7 @@ Calculations may reuse other calculations, such as ATR or NATR for level detecti
 
 Use Go with Protobuf and `grpc-go`. The existing Market Data Go client removes the need to build another upstream client. The workload needs ordinary numerical calculations and request orchestration; Python adds no required capability here. gRPC supports generated Go clients and servers from a shared schema; see the [official Go tutorial](https://grpc.io/docs/languages/go/basics/).
 
-Pin the Market Data client, shared model and conversion modules, and code generators to reviewed compatible versions. The reviewed client module declares Go `1.27.1`; verify the build environment against that requirement before implementation.
+Pin the Market Data client and code generators to reviewed versions. The reviewed client module declares Go `1.27.1`; verify the build environment against that requirement before implementation.
 
 ### Boundaries
 
@@ -53,9 +53,9 @@ Keep four responsibilities separate:
 
 | Responsibility | Owns |
 | --- | --- |
-| Domain | Shared market values and calendar, Analyzer selection rules, extrema, trend, ATR, NATR, and level calculations |
+| Domain | Candle value types, range arithmetic, extrema, trend, ATR, NATR, and level calculations |
 | Application | Input validation, one request time, range planning, a consumer-owned candle-reader interface, result assembly |
-| Infrastructure | Market Data gRPC adapter, shared Protobuf conversions, and upstream error mapping |
+| Infrastructure | Market Data gRPC adapter and exact mapping of values, presence, and upstream errors |
 | Transport and entry point | Analyzer Protobuf mapping, gRPC handlers, operational HTTP, configuration, and dependency construction |
 
 Domain and application code do not import generated Protobuf types, gRPC, or observability packages. Inject a clock and the candle reader. Reuse the upstream gRPC channel; a channel is not a data cache.
@@ -1297,22 +1297,23 @@ New candles can change the latest ATR. A later calculation can therefore change 
 
 ## Data Model
 
-Market Data owns shared market models in `github.com/imbpp123/market-data/pkg/market`. Analyzer uses those models directly and owns its calculation inputs, results, and their relationships. Preparation and consumer handoff are defined in [phase 1](phases/01-market-data-prepare.md). It has no database entities or persistent identifiers. All objects exist within one analysis request.
+The domain model describes calculation inputs, results, and their relationships. It has no database entities or persistent identifiers. All objects exist within one analysis request.
 
 ### Domain values
 
 | Value | Responsibility |
 | --- | --- |
-| Shared market values | `market.Exchange`, `market.Market`, `market.Timeframe`, `market.Instrument`, `market.Kline`, `market.Ticker`, and `market.MarketStats`; use the types needed by each calculation. |
-| `CandleSelection` | Shared exchange, market, and timeframe values, exact symbol, requested `to`, and total `candle_count`. No catalog lookup is needed. |
+| `Instrument` | Exchange, market, and exact symbol. |
+| `CandleSelection` | Instrument, interval, requested `to`, and total `candle_count`. |
 | `CandleRange` | Calculated inclusive `from` and exclusive `to`, using the interval calendar. |
-| `CandleSeries` | Instrument, interval, actual range, and a complete chronological list of shared `market.Kline` values. |
+| `Candle` | Opening and closing times and parsed OHLC, volume, and turnover values. |
+| `CandleSeries` | Instrument, interval, actual range, and a complete chronological candle list. |
 | `ATRSettings` | Smoothing period. |
 | `ExtremaSettings` | Price source and exactly one of the three method settings. |
 | `TrendSettings` | Extrema settings and equality tolerance percent. |
 | `LevelSettings` | Extrema settings, ATR period for zone width, width multiplier, minimum touches, and touch spacing. |
 
-Use `decimal.Decimal` for domain decimal values and the shared [numerical rules](#numerical-rules). Use the shared model module’s calendar operations in the domain; do not duplicate them in Analyzer. The application selects the required range and coordinates its loading. Pure shared models are allowed in inner layers; the Protobuf conversion module is not.
+Use `decimal.Decimal` for domain decimal values and the shared [numerical rules](#numerical-rules). Calendar calculations belong to the domain; the application selects the required range and coordinates its loading.
 
 Values must satisfy their invariants before calculation. A validated `CandleSeries` has matching identity, correct slot boundaries, positive OHLC values, valid OHLC ordering, and no missing or duplicate slots. Calculations must not modify their input series or settings.
 
@@ -1382,10 +1383,10 @@ For a valid request, plan one range and make one application-level `GetKlines` c
 
 Keep two representations of source data within the request:
 
-- Shared `market.SourceKline` records preserve Market Data strings, timestamps, and optional values for the response.
-- Shared `market.Kline` values contain parsed numbers for validation and calculation.
+- Application-owned `SourceCandle` records preserve Market Data strings, timestamps, and optional values for the response.
+- Domain `Candle` values contain parsed numbers for validation and calculation.
 
-Both lists have the same length and index order. The infrastructure adapter calls `github.com/imbpp123/market-data/pkg/marketgrpc` to decode upstream messages once into shared models and source records. Market Data owns these conversions. Analyzer owns its analysis response mapping and RPC error mapping. The adapter removes upstream generated types at the boundary. Neither the domain nor the application imports Market Data Protobuf types.
+Both lists have the same length and index order. Parse each numeric source value once. The adapter removes upstream generated types at the boundary. Neither the domain nor the application imports Market Data Protobuf types.
 
 Inject the candle reader and a clock. Capture `evaluated_at` once at request start. It records processing time and does not replace the caller's `to`. Reject a selected range whose end is after the current closed-candle boundary; do not silently clamp it. The calculated range must also satisfy Market Data timestamp and calendar constraints.
 
@@ -1589,7 +1590,7 @@ Once implementation exists, run formatting, focused tests, build, vet, unit test
 
 The calculation rules are defined. The remaining work is implementation and verification, not another choice of trend or extrema behavior.
 
-Before release, record the deployed Market Data endpoint and contract version, pin the toolchain and generators, and validate the proposed timeouts and transport limits with the [release validation measurements](phases/06-release-validation.md). Environment security settings belong to deployment configuration.
+Before release, record the deployed Market Data endpoint and contract version, pin the toolchain and generators, and validate the proposed timeouts and transport limits with the [release validation measurements](phases/05-release-validation.md). Environment security settings belong to deployment configuration.
 
 ## Sources
 
