@@ -17,4 +17,4 @@ Settings and candles in this phase contain parsed values. Required scalar presen
 
 Tests beside the code cover calendar alignment and traversal, interval combinations, timestamp and count overflow, settings boundaries, malformed series, ownership, cancellation, and decimal rounding. Numerical fixtures include 1,024-character source values, very small fractions, negative division scales, rounding carries, and concurrent operations.
 
-Run the [development checks](../README.md#development) before extending this package. Phase 2 adds indicator calculations; no indicator result is available in phase 1.
+Run the [development checks](../README.md#development) before extending this package. The [domain calculations guide](domain-calculations.md) describes the indicator calculations added in phase 2.

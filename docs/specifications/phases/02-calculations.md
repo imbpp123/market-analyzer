@@ -1,6 +1,6 @@
 # Phase 2: Calculations
 
-Status: planned. Dependency: [Phase 1](01-domain-foundations.md).
+Status: complete. Dependency: [Phase 1](01-domain-foundations.md).
 
 ## Summary
 
@@ -78,5 +78,7 @@ Build direct point fixtures for classifier and grouping rules, plus full candle 
 ## Completion criteria
 
 All five analyses and all three extrema methods pass domain tests and shared checks. Every state and reason has coverage. No RPC, external reader, or runtime listener is required to run the calculations.
+
+Implementation and verification: [Domain calculations](../../domain-calculations.md). All domain calculations and shared checks pass. API and runtime integration remain later-phase work.
 
 Next: [Phase 3](03-api-and-use-cases.md).

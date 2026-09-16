@@ -4,7 +4,7 @@ A planned stateless gRPC service for technical analysis of market data.
 It calculates indicators, identifies trends, and finds support and resistance levels.
 Version 1 uses candles from Market Data to calculate ATR, NATR, price extrema, global and local trends, and horizontal support and resistance levels.
 
-Phase 1 implements the domain foundation in Go: validated candle inputs, calendar ranges, algorithm settings, and decimal helpers. Indicators and the runnable service are not implemented yet.
+Phases 1 and 2 implement the domain in Go: validated candle inputs, calendar ranges, algorithm settings, decimal helpers, ATR/NATR, three extrema methods, trend classification, and horizontal zones. Calculations run on in-memory candles. The API and runnable service are not implemented yet.
 
 ## Development
 
@@ -29,3 +29,4 @@ set `GOCACHE` to a writable directory, for example `GOCACHE=/tmp/market-analyzer
 - [Implementation phases](docs/specifications/phases/README.md): ordered work, deliverables, test cases, and completion criteria.
 - [Development instructions](AGENTS.md): project rules.
 - [Domain foundation](docs/domain-foundations.md): package contracts, validation, and verification.
+- [Domain calculations](docs/domain-calculations.md): calculation entry points, evidence, ownership, and verification.

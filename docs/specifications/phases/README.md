@@ -1,6 +1,6 @@
 # Market Analyzer implementation phases
 
-These files describe implementation work. Phase 1 is complete. Phases 2–5 are planned.
+These files describe implementation work. Phases 1 and 2 are complete. Phases 3–5 are planned.
 
 The [main specification](../market-analyzer-v1.md) owns calculation rules, domain meanings, API behavior, and operational requirements. Phase files define work order, deliverables, and tests. They do not replace the specification or introduce alternative algorithms.
 
