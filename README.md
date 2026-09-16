@@ -4,7 +4,7 @@ A planned stateless gRPC service for technical analysis of market data.
 It calculates indicators, identifies trends, and finds support and resistance levels.
 Version 1 uses candles from Market Data to calculate ATR, NATR, price extrema, global and local trends, and horizontal support and resistance levels.
 
-Phases 1 and 2 implement the domain in Go: validated candle inputs, calendar ranges, algorithm settings, decimal helpers, ATR/NATR, three extrema methods, trend classification, and horizontal zones. Calculations run on in-memory candles. The API and runnable service are not implemented yet.
+Phases 1 through 3 implement the domain, typed application use cases, and the generated gRPC API. Calculations run on one validated in-memory candle set per request. The real Market Data adapter and runnable service are not implemented yet.
 
 ## Development
 
@@ -16,12 +16,15 @@ The upstream client is not a dependency until service integration.
 ```sh
 go mod download
 make fmt
+make lint
 make check
 ```
 
-`make check` runs build, vet, unit tests, race tests, formatting, and Git whitespace checks.
-No separate linter is configured. If the default Go build cache is not writable,
-set `GOCACHE` to a writable directory, for example `GOCACHE=/tmp/market-analyzer-go-build make check`.
+`make lint` installs golangci-lint `v2.13.2` into `.bin` when needed and runs it.
+`make check` runs build, vet, unit tests, race tests, golangci-lint, formatting,
+and Git whitespace checks. If the default Go build cache is not writable, set
+`GOCACHE` to a writable directory, for example
+`GOCACHE=/tmp/market-analyzer-go-build make check`.
 
 ## Documentation
 
@@ -30,3 +33,4 @@ set `GOCACHE` to a writable directory, for example `GOCACHE=/tmp/market-analyzer
 - [Development instructions](AGENTS.md): project rules.
 - [Domain foundation](docs/domain-foundations.md): package contracts, validation, and verification.
 - [Domain calculations](docs/domain-calculations.md): calculation entry points, evidence, ownership, and verification.
+- [API and use cases](docs/api-and-use-cases.md): application flow, gRPC boundary, generation, and verification.

@@ -1,6 +1,6 @@
 # Phase 3: API and use cases
 
-Status: planned. Dependency: [Phase 2](02-calculations.md).
+Status: complete. Dependency: [Phase 2](02-calculations.md).
 
 ## Summary
 
@@ -63,5 +63,7 @@ Test size boundaries with small test-specific limits and measured Protobuf sizes
 ## Completion criteria
 
 A generated Go client can call all five RPCs on a test server. Application and transport tests pass with the real domain calculations. Regeneration produces no unexpected diff. No upstream generated type crosses the application boundary.
+
+Implementation and verification: [API and use cases](../../api-and-use-cases.md). The five generated RPCs, application use cases, source preservation, error mapping, deadlines, and transport bounds are covered by tests with a fake reader and a local gRPC server. The live Market Data adapter and process startup remain phase 4 work.
 
 Next: [Phase 4](04-service-integration.md).

@@ -1,0 +1,241 @@
+syntax = "proto3";
+
+package marketanalyzer.v1;
+
+option go_package = "github.com/imbpp123/market-analyzer/api/go/marketanalyzer/v1;marketanalyzerv1";
+
+import "google/protobuf/timestamp.proto";
+
+service MarketAnalyzerService {
+  rpc GetATR(GetATRRequest) returns (GetATRResponse);
+  rpc GetNATR(GetNATRRequest) returns (GetNATRResponse);
+  rpc GetExtrema(GetExtremaRequest) returns (GetExtremaResponse);
+  rpc GetTrend(GetTrendRequest) returns (GetTrendResponse);
+  rpc GetLevels(GetLevelsRequest) returns (GetLevelsResponse);
+}
+
+enum PriceSource {
+  PRICE_SOURCE_UNSPECIFIED = 0;
+  PRICE_SOURCE_CLOSE = 1;
+  PRICE_SOURCE_HIGH_LOW = 2;
+}
+
+enum ExtremumKind {
+  EXTREMUM_KIND_UNSPECIFIED = 0;
+  EXTREMUM_KIND_HIGH = 1;
+  EXTREMUM_KIND_LOW = 2;
+}
+
+enum TrendState {
+  TREND_STATE_UNSPECIFIED = 0;
+  TREND_STATE_UP = 1;
+  TREND_STATE_DOWN = 2;
+  TREND_STATE_SIDEWAYS = 3;
+  TREND_STATE_UNDETERMINED = 4;
+}
+
+enum ZoneRole {
+  ZONE_ROLE_UNSPECIFIED = 0;
+  ZONE_ROLE_SUPPORT = 1;
+  ZONE_ROLE_RESISTANCE = 2;
+  ZONE_ROLE_AT_PRICE = 3;
+}
+
+message Selection {
+  optional string exchange = 1;
+  optional string market = 2;
+  optional string symbol = 3;
+  google.protobuf.Timestamp to = 4;
+  optional uint32 candle_count = 5;
+  optional string interval = 6;
+}
+
+message ATRSettings {
+  optional uint32 period = 1;
+}
+
+message LocalExtremaSettings {
+  optional uint32 pivot_span = 1;
+}
+
+message PercentReversalSettings {
+  optional string reversal_pct = 1;
+}
+
+message ATRReversalSettings {
+  optional uint32 atr_period = 1;
+  optional string atr_multiplier = 2;
+}
+
+message ExtremaSettings {
+  optional PriceSource price_source = 1;
+  oneof method {
+    LocalExtremaSettings local_extrema = 2;
+    PercentReversalSettings reversal_percent = 3;
+    ATRReversalSettings reversal_atr = 4;
+  }
+}
+
+message TrendSettings {
+  ExtremaSettings extrema = 1;
+  optional string equality_tolerance_pct = 2;
+}
+
+message LevelSettings {
+  ExtremaSettings extrema = 1;
+  optional uint32 atr_period = 2;
+  optional string zone_width_atr = 3;
+  optional uint32 min_touches = 4;
+  optional uint32 min_touch_separation_bars = 5;
+}
+
+message Candle {
+  google.protobuf.Timestamp open_time = 1;
+  google.protobuf.Timestamp close_time = 2;
+  string open = 3;
+  string high = 4;
+  string low = 5;
+  string close = 6;
+  string volume = 7;
+  string turnover = 8;
+  optional int64 trades_count = 9;
+  google.protobuf.Timestamp fetched_at = 10;
+}
+
+message Metadata {
+  Selection selection = 1;
+  google.protobuf.Timestamp evaluated_at = 2;
+  google.protobuf.Timestamp source_from = 3;
+  google.protobuf.Timestamp source_to = 4;
+  repeated string algorithm_ids = 5;
+  string numeric_policy = 6;
+}
+
+message ATRResult {
+  string value = 1;
+  uint32 candle_index = 2;
+  google.protobuf.Timestamp value_time = 3;
+}
+
+message NATRResult {
+  string value = 1;
+  string atr = 2;
+  string reference_close = 3;
+  uint32 candle_index = 4;
+  google.protobuf.Timestamp value_time = 5;
+}
+
+message ReversalEvidence {
+  string threshold = 1;
+  string confirmation_price = 2;
+  optional string candidate_atr = 3;
+}
+
+message Extremum {
+  ExtremumKind kind = 1;
+  uint32 candle_index = 2;
+  google.protobuf.Timestamp time = 3;
+  string price = 4;
+  uint32 confirmation_candle_index = 5;
+  google.protobuf.Timestamp confirmation_time = 6;
+  ReversalEvidence reversal = 7;
+}
+
+message ExtremaResult {
+  repeated Extremum points = 1;
+}
+
+message TrendResult {
+  TrendState state = 1;
+  string reason = 2;
+  string tolerance = 3;
+  string reference_close = 4;
+  ExtremaResult extrema = 5;
+}
+
+message PriceZone {
+  string lower_bound = 1;
+  string upper_bound = 2;
+  string representative_price = 3;
+  ZoneRole role = 4;
+  repeated uint32 extremum_indices = 5;
+  repeated uint32 accepted_candle_indices = 6;
+  uint32 touch_count = 7;
+  google.protobuf.Timestamp first_touch_time = 8;
+  google.protobuf.Timestamp last_touch_time = 9;
+}
+
+message LevelsResult {
+  repeated PriceZone zones = 1;
+  ExtremaResult extrema = 2;
+  ATRResult atr = 3;
+  string maximum_zone_width = 4;
+  string reference_close = 5;
+}
+
+message GetATRRequest {
+  Selection selection = 1;
+  ATRSettings settings = 2;
+}
+
+message GetATRResponse {
+  Metadata metadata = 1;
+  repeated Candle candles = 2;
+  ATRSettings settings = 3;
+  ATRResult result = 4;
+}
+
+message GetNATRRequest {
+  Selection selection = 1;
+  ATRSettings settings = 2;
+}
+
+message GetNATRResponse {
+  Metadata metadata = 1;
+  repeated Candle candles = 2;
+  ATRSettings settings = 3;
+  NATRResult result = 4;
+}
+
+message GetExtremaRequest {
+  Selection selection = 1;
+  ExtremaSettings settings = 2;
+}
+
+message GetExtremaResponse {
+  Metadata metadata = 1;
+  repeated Candle candles = 2;
+  ExtremaSettings settings = 3;
+  ExtremaResult result = 4;
+}
+
+message GetTrendRequest {
+  Selection selection = 1;
+  TrendSettings settings = 2;
+}
+
+message GetTrendResponse {
+  Metadata metadata = 1;
+  repeated Candle candles = 2;
+  TrendSettings settings = 3;
+  TrendResult result = 4;
+}
+
+message GetLevelsRequest {
+  Selection selection = 1;
+  LevelSettings settings = 2;
+}
+
+message GetLevelsResponse {
+  Metadata metadata = 1;
+  repeated Candle candles = 2;
+  LevelSettings settings = 3;
+  LevelsResult result = 4;
+}
+
+message ErrorDetail {
+  string reason = 1;
+  optional string field = 2;
+  optional string upstream_code = 3;
+  optional string upstream_reason = 4;
+}
