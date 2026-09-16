@@ -1,6 +1,6 @@
 # Market Analyzer implementation phases
 
-These files describe planned implementation work. No phase is complete yet.
+These files describe implementation work. Phase 1 is complete. Phases 2–5 are planned.
 
 The [main specification](../market-analyzer-v1.md) owns calculation rules, domain meanings, API behavior, and operational requirements. Phase files define work order, deliverables, and tests. They do not replace the specification or introduce alternative algorithms.
 
@@ -28,4 +28,4 @@ After each code phase, run formatting, focused tests, build, vet, unit tests, ra
 
 A phase completion report must list implemented work, changed files, checks and results, and unresolved issues. Do not mark a phase complete when required checks cannot run. Record the blocker and completed independent work instead.
 
-These documents plan work only. They do not authorize deployment or claim that the service exists.
+Phase status records completed work and planned work. It does not authorize deployment or claim that the service exists.

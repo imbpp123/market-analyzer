@@ -1,6 +1,6 @@
 # Phase 1: Domain foundations
 
-Status: planned. Dependencies: none.
+Status: complete (2026-09-16). Dependencies: none.
 
 ## Summary
 
@@ -55,5 +55,13 @@ Use explicit decimal strings for expected values. Include numbers large enough t
 ## Completion criteria
 
 The module builds and all phase tests and shared checks pass. Domain packages have no Protobuf, gRPC, configuration, or observability imports. No indicator implementation is claimed in this phase.
+
+## Completion evidence
+
+Implemented in `internal/domain` with adjacent unit tests. See the [domain guide](../../domain-foundations.md) for contracts and the [development commands](../../../README.md#development) for toolchain and dependency pins.
+
+Validation on Go 1.27.1: build, vet, unit tests, race tests, formatting, and whitespace checks passed. Domain statement coverage was 98.2%. No separate linter is configured. The sandbox required a writable Go build cache at `/tmp/market-analyzer-go-build`.
+
+No phase 1 blockers remain. Source text and presence checks, request-time future checks, indicators, and service integration remain in their later phases.
 
 Next: [Phase 2](02-calculations.md).
