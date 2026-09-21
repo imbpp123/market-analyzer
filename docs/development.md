@@ -2,7 +2,9 @@
 
 ## Toolchain
 
-The module requires Go `1.27.1`. Protobuf generation also requires `protoc`.
+The module requires Go `1.27.1`. Protobuf generation requires `protoc v29.3`
+to match the checked-in Go files. CI installs this version from the official
+Protocol Buffers release.
 The Makefile pins:
 
 - `protoc-gen-go v1.36.10`;

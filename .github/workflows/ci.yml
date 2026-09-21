@@ -32,8 +32,12 @@ jobs:
 
       - name: Install Protobuf compiler
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes protobuf-compiler
+          curl -fsSL --retry 3 \
+            https://github.com/protocolbuffers/protobuf/releases/download/v29.3/protoc-29.3-linux-x86_64.zip \
+            -o "$RUNNER_TEMP/protoc.zip"
+          unzip -q "$RUNNER_TEMP/protoc.zip" -d "$RUNNER_TEMP/protoc"
+          test "$("$RUNNER_TEMP/protoc/bin/protoc" --version)" = "libprotoc 29.3"
+          echo "$RUNNER_TEMP/protoc/bin" >> "$GITHUB_PATH"
 
       - name: Run repository checks
         run: make check
