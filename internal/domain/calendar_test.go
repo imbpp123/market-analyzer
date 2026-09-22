@@ -20,7 +20,16 @@ func timestamp(value string) time.Time {
 }
 
 func selection() CandleSelection {
-	return CandleSelection{Instrument: Instrument{"binance", "spot", "BTCUSDT"}, Interval: "1m", To: timestamp("2026-09-15T14:02:30Z"), CandleCount: 60}
+	return CandleSelection{
+		Instrument: Instrument{
+			Exchange: "binance",
+			Market:   "spot",
+			Symbol:   "BTCUSDT",
+		},
+		Interval:    "1m",
+		To:          timestamp("2026-09-15T14:02:30Z"),
+		CandleCount: 60,
+	}
 }
 
 func TestSelectionRange(t *testing.T) {
@@ -35,8 +44,7 @@ func TestSelectionRange(t *testing.T) {
 		{"leap month", "1M", "2024-03-15T12:00:00Z", "2024-02-01T00:00:00Z", "2024-03-01T00:00:00Z", 1},
 		{"year boundary", "1M", "2025-02-01T00:00:00Z", "2024-11-01T00:00:00Z", "2025-02-01T00:00:00Z", 3},
 		{"leap day", "1d", "2024-03-01T01:00:00Z", "2024-02-29T00:00:00Z", "2024-03-01T00:00:00Z", 1},
-		{"three day anchor", "3d", "1970-01-08T12:00:00Z", "1970-01-02T00:00:00Z", "1970-01-08T00:00:00Z", 2},
-		{"epoch", "1s", "1970-01-01T00:00:01Z", "1970-01-01T00:00:00Z", "1970-01-01T00:00:01Z", 1},
+		{"epoch", "1m", "1970-01-01T00:01:00Z", "1970-01-01T00:00:00Z", "1970-01-01T00:01:00Z", 1},
 	}
 
 	for _, tc := range cases {
@@ -70,6 +78,9 @@ func TestSelectionRejectsInvalidInput(t *testing.T) {
 		{"symbol length", func(s *CandleSelection) { s.Instrument.Symbol = strings.Repeat("a", 129) }, "symbol"},
 		{"symbol invalid UTF8", func(s *CandleSelection) { s.Instrument.Symbol = "\xff" }, "symbol"},
 		{"interval", func(s *CandleSelection) { s.Interval = "1H" }, "interval"},
+		{"one second", func(s *CandleSelection) { s.Interval = "1s" }, "interval"},
+		{"eight hours", func(s *CandleSelection) { s.Interval = "8h" }, "interval"},
+		{"three days", func(s *CandleSelection) { s.Interval = "3d" }, "interval"},
 		{"zero count", func(s *CandleSelection) { s.CandleCount = 0 }, "candle_count"},
 		{"missing time", func(s *CandleSelection) { s.To = time.Time{} }, "to"},
 		{"future timestamp overflow", func(s *CandleSelection) { s.To = time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC) }, "to"},
@@ -93,36 +104,32 @@ func TestSelectionRejectsInvalidInput(t *testing.T) {
 }
 
 func TestIntervalCombinations(t *testing.T) {
-	intervals := []Interval{"1s", "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1M"}
-	scopes := []struct {
-		exchange, market string
-		extras           bool
-		seconds          bool
-	}{
-		{"binance", "spot", true, true}, {"binance", "linear", true, false}, {"bybit", "spot", false, false}, {"bybit", "linear", false, false},
-	}
+	intervals := []Interval{"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d", "1w", "1M"}
 
-	for _, scope := range scopes {
-		for _, interval := range intervals {
-			t.Run(scope.exchange+"/"+scope.market+"/"+string(interval), func(t *testing.T) {
-				err := interval.Validate(Instrument{scope.exchange, scope.market, "bTc-USDT"})
-				allowed := true
-				if interval == "1s" {
-					allowed = scope.seconds
-				}
-
-				if interval == "8h" || interval == "3d" {
-					allowed = scope.extras
-				}
-
-				if allowed {
+	for _, exchange := range []string{ExchangeBinance, ExchangeBybit} {
+		for _, market := range []string{MarketSpot, MarketLinear} {
+			for _, interval := range intervals {
+				t.Run(exchange+"/"+market+"/"+string(interval), func(t *testing.T) {
+					err := interval.Validate(Instrument{
+						Exchange: exchange,
+						Market:   market,
+						Symbol:   "bTc-USDT",
+					})
 
 					require.NoError(t, err)
-				} else {
-					require.Error(t, err)
-				}
-			})
+				})
+			}
 		}
+	}
+}
+
+func TestRemovedIntervalsRejectFloor(t *testing.T) {
+	for _, interval := range []Interval{"1s", "8h", "3d"} {
+		t.Run(string(interval), func(t *testing.T) {
+			_, err := interval.Floor(timestamp("2026-09-15T17:47:38Z"))
+
+			checkValidation(t, err, "interval")
+		})
 	}
 }
 
@@ -135,11 +142,11 @@ func TestShiftRejectsInvalidBoundaries(t *testing.T) {
 	}{
 		{"unknown", "bad", timestamp("2026-01-01T00:00:00Z"), 1},
 		{"unaligned", "1m", timestamp("2026-01-01T00:00:01Z"), 1},
-		{"seconds overflow", "1s", timestamp("2026-01-01T00:00:00Z"), math.MaxInt64},
-		{"seconds underflow", "1s", timestamp("2026-01-01T00:00:00Z"), math.MinInt64},
+		{"fixed overflow", "1m", timestamp("2026-01-01T00:00:00Z"), math.MaxInt64},
+		{"fixed underflow", "1m", timestamp("2026-01-01T00:00:00Z"), math.MinInt64},
 		{"months overflow", "1M", timestamp("2026-01-01T00:00:00Z"), math.MaxInt64},
 		{"months underflow", "1M", timestamp("2026-01-01T00:00:00Z"), math.MinInt64},
-		{"last timestamp", "1s", timestamp("9999-12-31T23:59:59Z"), 1},
+		{"last timestamp", "1m", timestamp("9999-12-31T23:59:00Z"), 1},
 	}
 
 	for _, tc := range cases {
@@ -156,7 +163,6 @@ func TestFloorFixedIntervals(t *testing.T) {
 		interval Interval
 		want     string
 	}{
-		{"1s", "2026-09-15T17:47:38Z"},
 		{"1m", "2026-09-15T17:47:00Z"},
 		{"3m", "2026-09-15T17:45:00Z"},
 		{"5m", "2026-09-15T17:45:00Z"},
@@ -166,7 +172,6 @@ func TestFloorFixedIntervals(t *testing.T) {
 		{"2h", "2026-09-15T16:00:00Z"},
 		{"4h", "2026-09-15T16:00:00Z"},
 		{"6h", "2026-09-15T12:00:00Z"},
-		{"8h", "2026-09-15T16:00:00Z"},
 		{"12h", "2026-09-15T12:00:00Z"},
 		{"1d", "2026-09-15T00:00:00Z"},
 	}
@@ -184,20 +189,12 @@ func TestFloorFixedIntervals(t *testing.T) {
 
 func TestEpochUsesUTCYear(t *testing.T) {
 	s := selection()
-	s.Interval = "1s"
+	s.Interval = "1m"
 	s.CandleCount = 1
-	s.To = timestamp("1969-12-31T23:00:01-01:00")
+	s.To = timestamp("1969-12-31T23:01:00-01:00")
 
 	result, err := s.Range()
 
 	require.NoError(t, err)
 	assert.Equal(t, timestamp("1970-01-01T00:00:00Z"), result.From)
-}
-
-func TestInstrumentPreservesSymbol(t *testing.T) {
-	symbol := "bTc" + strings.Repeat("a", 125)
-	instrument := Instrument{"bybit", "linear", symbol}
-
-	require.NoError(t, instrument.Validate())
-	assert.Equal(t, symbol, instrument.Symbol)
 }

@@ -19,11 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	MarketAnalyzerService_GetATR_FullMethodName     = "/marketanalyzer.v1.MarketAnalyzerService/GetATR"
-	MarketAnalyzerService_GetNATR_FullMethodName    = "/marketanalyzer.v1.MarketAnalyzerService/GetNATR"
-	MarketAnalyzerService_GetExtrema_FullMethodName = "/marketanalyzer.v1.MarketAnalyzerService/GetExtrema"
-	MarketAnalyzerService_GetTrend_FullMethodName   = "/marketanalyzer.v1.MarketAnalyzerService/GetTrend"
-	MarketAnalyzerService_GetLevels_FullMethodName  = "/marketanalyzer.v1.MarketAnalyzerService/GetLevels"
+	MarketAnalyzerService_GetATR_FullMethodName                = "/marketanalyzer.v1.MarketAnalyzerService/GetATR"
+	MarketAnalyzerService_GetNATR_FullMethodName               = "/marketanalyzer.v1.MarketAnalyzerService/GetNATR"
+	MarketAnalyzerService_GetExtrema_FullMethodName            = "/marketanalyzer.v1.MarketAnalyzerService/GetExtrema"
+	MarketAnalyzerService_GetTrend_FullMethodName              = "/marketanalyzer.v1.MarketAnalyzerService/GetTrend"
+	MarketAnalyzerService_GetLevels_FullMethodName             = "/marketanalyzer.v1.MarketAnalyzerService/GetLevels"
+	MarketAnalyzerService_FindActiveInstruments_FullMethodName = "/marketanalyzer.v1.MarketAnalyzerService/FindActiveInstruments"
 )
 
 // MarketAnalyzerServiceClient is the client API for MarketAnalyzerService service.
@@ -35,6 +36,7 @@ type MarketAnalyzerServiceClient interface {
 	GetExtrema(ctx context.Context, in *GetExtremaRequest, opts ...grpc.CallOption) (*GetExtremaResponse, error)
 	GetTrend(ctx context.Context, in *GetTrendRequest, opts ...grpc.CallOption) (*GetTrendResponse, error)
 	GetLevels(ctx context.Context, in *GetLevelsRequest, opts ...grpc.CallOption) (*GetLevelsResponse, error)
+	FindActiveInstruments(ctx context.Context, in *FindActiveInstrumentsRequest, opts ...grpc.CallOption) (*FindActiveInstrumentsResponse, error)
 }
 
 type marketAnalyzerServiceClient struct {
@@ -95,6 +97,16 @@ func (c *marketAnalyzerServiceClient) GetLevels(ctx context.Context, in *GetLeve
 	return out, nil
 }
 
+func (c *marketAnalyzerServiceClient) FindActiveInstruments(ctx context.Context, in *FindActiveInstrumentsRequest, opts ...grpc.CallOption) (*FindActiveInstrumentsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FindActiveInstrumentsResponse)
+	err := c.cc.Invoke(ctx, MarketAnalyzerService_FindActiveInstruments_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MarketAnalyzerServiceServer is the server API for MarketAnalyzerService service.
 // All implementations must embed UnimplementedMarketAnalyzerServiceServer
 // for forward compatibility.
@@ -104,6 +116,7 @@ type MarketAnalyzerServiceServer interface {
 	GetExtrema(context.Context, *GetExtremaRequest) (*GetExtremaResponse, error)
 	GetTrend(context.Context, *GetTrendRequest) (*GetTrendResponse, error)
 	GetLevels(context.Context, *GetLevelsRequest) (*GetLevelsResponse, error)
+	FindActiveInstruments(context.Context, *FindActiveInstrumentsRequest) (*FindActiveInstrumentsResponse, error)
 	mustEmbedUnimplementedMarketAnalyzerServiceServer()
 }
 
@@ -128,6 +141,9 @@ func (UnimplementedMarketAnalyzerServiceServer) GetTrend(context.Context, *GetTr
 }
 func (UnimplementedMarketAnalyzerServiceServer) GetLevels(context.Context, *GetLevelsRequest) (*GetLevelsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetLevels not implemented")
+}
+func (UnimplementedMarketAnalyzerServiceServer) FindActiveInstruments(context.Context, *FindActiveInstrumentsRequest) (*FindActiveInstrumentsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FindActiveInstruments not implemented")
 }
 func (UnimplementedMarketAnalyzerServiceServer) mustEmbedUnimplementedMarketAnalyzerServiceServer() {}
 func (UnimplementedMarketAnalyzerServiceServer) testEmbeddedByValue()                               {}
@@ -240,6 +256,24 @@ func _MarketAnalyzerService_GetLevels_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MarketAnalyzerService_FindActiveInstruments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FindActiveInstrumentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MarketAnalyzerServiceServer).FindActiveInstruments(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MarketAnalyzerService_FindActiveInstruments_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MarketAnalyzerServiceServer).FindActiveInstruments(ctx, req.(*FindActiveInstrumentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MarketAnalyzerService_ServiceDesc is the grpc.ServiceDesc for MarketAnalyzerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -266,6 +300,10 @@ var MarketAnalyzerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetLevels",
 			Handler:    _MarketAnalyzerService_GetLevels_Handler,
+		},
+		{
+			MethodName: "FindActiveInstruments",
+			Handler:    _MarketAnalyzerService_FindActiveInstruments_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

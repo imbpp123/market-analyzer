@@ -38,7 +38,9 @@ func NewCandleSeries(ctx context.Context, selection CandleSelection, instrument 
 		return CandleSeries{}, err
 	}
 
-	if instrument != selection.Instrument {
+	if instrument.Exchange != selection.Instrument.Exchange ||
+		instrument.Market != selection.Instrument.Market ||
+		instrument.Symbol != selection.Instrument.Symbol {
 		return CandleSeries{}, invalid("instrument", "source identity does not match selection")
 	}
 

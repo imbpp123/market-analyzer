@@ -20,6 +20,30 @@ func mapATRResponse(input application.ATRResponse) (*marketanalyzerv1.GetATRResp
 			CandleIndex: uint32(input.Result.CandleIndex), ValueTime: timestamppb.New(input.Result.ValueTime)}}, nil
 }
 
+func mapFindActiveInstrumentsResponse(input application.FindActiveInstrumentsResponse) *marketanalyzerv1.FindActiveInstrumentsResponse {
+	result := &marketanalyzerv1.FindActiveInstrumentsResponse{Instruments: make([]*marketanalyzerv1.ActiveInstrument, len(input.Instruments))}
+	for index, instrument := range input.Instruments {
+		row := &marketanalyzerv1.ActiveInstrument{
+			Exchange:   instrument.Exchange,
+			Market:     instrument.Market,
+			Symbol:     instrument.Symbol,
+			BaseAsset:  instrument.BaseAsset,
+			QuoteAsset: instrument.QuoteAsset,
+			Natr:       clonePointer(instrument.NATR),
+		}
+		if instrument.MarketStats != nil {
+			row.Volume_24H = pointer(instrument.MarketStats.Volume)
+			row.Trades_24H = clonePointer(instrument.MarketStats.TradeCount)
+			row.StatsFetchedAt = timestamppb.New(instrument.MarketStats.FetchedAt)
+		}
+		if !instrument.NATRValueTime.IsZero() {
+			row.NatrValueTime = timestamppb.New(instrument.NATRValueTime)
+		}
+		result.Instruments[index] = row
+	}
+	return result
+}
+
 func mapNATRResponse(input application.NATRResponse) (*marketanalyzerv1.GetNATRResponse, error) {
 	atr, err := domain.FormatNumber(input.Result.ATR)
 	if err != nil {

@@ -1,6 +1,6 @@
 # API and data selection
 
-Market Analyzer exposes five unary RPCs in the `marketanalyzer.v1` package. The
+Market Analyzer exposes six unary RPCs in the `marketanalyzer.v1` package. The
 canonical contract is
 [`market_analyzer.proto`](../api/proto/marketanalyzer/v1/market_analyzer.proto),
 and generated Go clients are in [`api/go`](../api/go/marketanalyzer/v1).
@@ -14,6 +14,55 @@ and generated Go clients are in [`api/go`](../api/go/marketanalyzer/v1).
 | `GetExtrema` | Price source and one extrema method | Confirmed extrema |
 | `GetTrend` | Extrema settings and equality tolerance | Trend state, reason, and extrema |
 | `GetLevels` | Extrema and zone settings | Price zones, extrema, and ATR evidence |
+| `FindActiveInstruments` | Exchange, market, and optional minimum thresholds | Trading instruments that meet the thresholds |
+
+## Find active instruments
+
+`FindActiveInstruments` requires `exchange` (`binance` or `bybit`) and `market`
+(`spot` or `linear`). It returns current instruments with `trading` status,
+sorted by symbol. It accepts three optional inclusive minimum thresholds and
+one optional NATR setting:
+
+| Field | Meaning |
+| --- | --- |
+| `min_volume_24h` | Market Data rolling 24-hour `volume`, in base asset units |
+| `min_trades_24h` | Market Data rolling 24-hour trade count |
+| `min_natr` | Minimum NATR percentage from closed daily candles |
+| `natr_period` | Optional NATR smoothing period; default 14, allowed range 1–999 |
+
+For example, `min_natr: "4"` means at least 4%. Decimal thresholds are plain
+base-10 strings and must be nonnegative. The trade count must be nonnegative.
+An omitted threshold is not applied. A present zero threshold still requires
+the corresponding data. An instrument with no trade count cannot meet a trade
+count threshold; Market Data currently omits this count for Bybit.
+`natr_period` requires `min_natr`. NATR uses `natr_period + 1` closed daily
+candles. Market Data receives only the candle interval and time range; Analyzer
+calculates NATR from those candles. The upper bound fits Market Data's default
+1,000-slot request limit.
+
+The service reads the instrument catalog first. It reads 24-hour statistics
+only when a volume or trade count threshold is present. It requests daily
+candles and calculates NATR only for instruments that pass those filters.
+The NATR comparison uses the unrounded calculation. The response includes the
+source volume and trade count when statistics were requested, and the NATR
+value and candle time when NATR was requested. Each matched row has its
+`exchange`, `market`, `symbol`, base asset, and quote asset.
+
+Statistics and catalog snapshots can have different update times. The
+response includes `stats_fetched_at` when statistics were read. A missing
+statistics row excludes that instrument. If a required snapshot or candle
+range is unavailable, the whole request fails. There is no partial result.
+Every statistics row is validated before filtering. An invalid row also fails
+the whole request, even when its symbol is not in the instrument catalog.
+NATR requires one Market Data candle request per remaining instrument, so a
+broad request can exceed the service timeout. Narrow the 24-hour thresholds
+before adding a NATR threshold.
+
+Example request for Binance spot:
+
+```json
+{"exchange":"binance","market":"spot","min_volume_24h":"1000","min_trades_24h":"100","min_natr":"2","natr_period":14}
+```
 
 All decimal parameters and calculated values use plain base-10 strings. Decimal
 inputs may have a sign and fractional part. Whitespace, exponent notation,
@@ -48,14 +97,13 @@ The requested `to` remains in response metadata. The actual aligned boundaries
 are returned as `source_from` and `source_to`. A range ending after the current
 closed-candle boundary is rejected; it is not clamped.
 
-Supported intervals are `1s`, `1m`, `3m`, `5m`, `15m`, `30m`, `1h`, `2h`,
-`4h`, `6h`, `8h`, `12h`, `1d`, `3d`, `1w`, and `1M`. `1s` is limited to
-Binance spot. `8h` and `3d` are limited to Binance. Week and month boundaries
-use the upstream UTC calendar rules.
+Supported intervals are `1m`, `3m`, `5m`, `15m`, `30m`, `1h`, `2h`, `4h`,
+`6h`, `12h`, `1d`, `1w`, and `1M`. Week and month boundaries use the
+upstream UTC calendar rules.
 
 ## Response contract
 
-Every successful response includes:
+Every successful calculation response (`GetATR` through `GetLevels`) includes:
 
 - echoed selection and effective calculation settings;
 - `evaluated_at`, `source_from`, and exclusive `source_to`;

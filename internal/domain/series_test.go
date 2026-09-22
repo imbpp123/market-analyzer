@@ -119,6 +119,19 @@ func TestSeriesRejectsMetadata(t *testing.T) {
 	}
 }
 
+func TestSeriesAcceptsDifferentInstrumentCatalogFields(t *testing.T) {
+	selection, candleRange, candles := seriesFixture()
+	source := selection.Instrument
+	source.BaseAsset = "BTC"
+	source.QuoteAsset = "USDT"
+	source.Status = InstrumentStatusTrading
+
+	series, err := NewCandleSeries(t.Context(), selection, source, selection.Interval, candleRange, candles)
+
+	require.NoError(t, err)
+	assert.Equal(t, selection, series.Selection())
+}
+
 func TestSeriesCancellation(t *testing.T) {
 	s, r, candles := seriesFixture()
 	ctx, cancel := context.WithCancel(t.Context())
