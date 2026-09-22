@@ -75,6 +75,8 @@ Separate calculations from I/O. Keep business rules and validation directly test
 ## Go coding style
 
 - Use standard Go formatting with `gofmt`. Keep a blank line between top-level type, function, and method declarations. Within functions, separate logical blocks with blank lines and keep related statements together; in tests, visually separate setup, action, and assertions. `gofmt` does not add this logical spacing for you. Avoid dense one-line control flow or multiple statements on one line. Use clear names and small, focused functions.
+- In Go files, order related types by dependency: independent types first, then types that use them. Keep each type's exported methods, then unexported methods, directly after the type. After the type groups, put exported package functions, then unexported package functions. Keep constants near the declarations they describe.
+- In named-field struct literals with multiple fields, put each field on its own line.
 - Make the smallest sufficient change. Preserve the existing style and public interfaces unless the task requires a change.
 - Prefer the standard library. Add dependencies only for a concrete requirement.
 - Prefer unexported types and functions unless another package needs them.

@@ -1,38 +1,6 @@
 package domain
 
-import (
-	"time"
-	"unicode"
-	"unicode/utf8"
-)
-
-type Instrument struct {
-	Exchange string
-	Market   string
-	Symbol   string
-}
-
-func (i Instrument) Validate() error {
-	if i.Exchange != "binance" && i.Exchange != "bybit" {
-		return invalid("exchange", "unsupported exchange")
-	}
-
-	if i.Market != "spot" && i.Market != "linear" {
-		return invalid("market", "unsupported market")
-	}
-
-	if len(i.Symbol) == 0 || len(i.Symbol) > 128 || !utf8.ValidString(i.Symbol) {
-		return invalid("symbol", "must contain 1 to 128 UTF-8 bytes")
-	}
-
-	for _, r := range i.Symbol {
-		if unicode.IsSpace(r) || unicode.IsControl(r) {
-			return invalid("symbol", "must not contain whitespace or control characters")
-		}
-	}
-
-	return nil
-}
+import "time"
 
 type Interval string
 
@@ -45,18 +13,11 @@ func (i Interval) Validate(instrument Instrument) error {
 		return invalid("interval", "unsupported interval")
 	}
 
-	if (i == "1s" && (instrument.Exchange != "binance" || instrument.Market != "spot")) ||
-		((i == "8h" || i == "3d") && instrument.Exchange != "binance") {
-		return invalid("interval", "unsupported exchange and market combination")
-	}
-
 	return nil
 }
 
 func (i Interval) slot() (seconds, anchor int64, ok bool) {
 	switch i {
-	case "1s":
-		return 1, 0, true
 	case "1m":
 		return 60, 0, true
 	case "3m":
@@ -75,14 +36,10 @@ func (i Interval) slot() (seconds, anchor int64, ok bool) {
 		return 14400, 0, true
 	case "6h":
 		return 21600, 0, true
-	case "8h":
-		return 28800, 0, true
 	case "12h":
 		return 43200, 0, true
 	case "1d":
 		return 86400, 0, true
-	case "3d":
-		return 259200, 86400, true
 	case "1w":
 		return 604800, 345600, true
 	case "1M":

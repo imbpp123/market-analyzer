@@ -14,7 +14,10 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-const DefaultMaxResponseBytes = 16 << 20
+const (
+	DefaultMaxResponseBytes = 16 << 20
+	marketStatsWindow       = "24h"
+)
 
 type Reader struct {
 	client marketdatav1.MarketDataServiceClient
@@ -72,7 +75,72 @@ func (r *Reader) ReadCandles(ctx context.Context, instrument domain.Instrument, 
 	}, nil
 }
 
+func (r *Reader) ReadInstruments(ctx context.Context, exchange, market string) ([]domain.Instrument, error) {
+	response, err := r.client.ListInstruments(ctx, &marketdatav1.ListInstrumentsRequest{
+		Exchange: pointer(exchange),
+		Market:   pointer(market),
+		Status:   pointer(string(domain.InstrumentStatusTrading)),
+	})
+	if err != nil {
+		return nil, mapOperationError("ListInstruments", err)
+	}
+
+	result := make([]domain.Instrument, len(response.GetInstruments()))
+	for index, instrument := range response.GetInstruments() {
+		if instrument == nil {
+			continue
+		}
+		result[index] = domain.Instrument{
+			Exchange:   instrument.GetExchange(),
+			Market:     instrument.GetMarket(),
+			Symbol:     instrument.GetSymbol(),
+			BaseAsset:  instrument.GetBaseAsset(),
+			QuoteAsset: instrument.GetQuoteAsset(),
+			Status:     domain.InstrumentStatus(instrument.GetStatus()),
+		}
+	}
+	return result, nil
+}
+
+func (r *Reader) ReadMarketStats(ctx context.Context, exchange, market string) ([]domain.MarketStats, error) {
+	response, err := r.client.ListMarketStats(ctx, &marketdatav1.ListMarketStatsRequest{
+		Exchange: pointer(exchange),
+		Market:   pointer(market),
+		Window:   pointer(marketStatsWindow),
+	})
+	if err != nil {
+		return nil, mapOperationError("ListMarketStats", err)
+	}
+
+	result := make([]domain.MarketStats, len(response.GetMarketStats()))
+	for index, stats := range response.GetMarketStats() {
+		if stats == nil {
+			continue
+		}
+		if stats.GetWindow() != marketStatsWindow {
+			return nil, &application.Error{
+				Kind: application.InvalidMarketData,
+				Err:  fmt.Errorf("market data ListMarketStats returned window %q, expected %q", stats.GetWindow(), marketStatsWindow),
+			}
+		}
+
+		result[index] = domain.MarketStats{
+			Exchange:   stats.GetExchange(),
+			Market:     stats.GetMarket(),
+			Symbol:     stats.GetSymbol(),
+			Volume:     stats.GetVolume(),
+			TradeCount: cloneInt64(stats.TradeCount),
+			FetchedAt:  timestamp(stats.GetFetchedAt()),
+		}
+	}
+	return result, nil
+}
+
 func mapError(err error) error {
+	return mapOperationError("GetKlines", err)
+}
+
+func mapOperationError(operation string, err error) error {
 	grpcStatus := status.Convert(err)
 	reason := upstreamReason(grpcStatus)
 
@@ -102,7 +170,7 @@ func mapError(err error) error {
 		Kind:           kind,
 		UpstreamCode:   grpcStatus.Code().String(),
 		UpstreamReason: reason,
-		Err:            fmt.Errorf("market data GetKlines: %w", err),
+		Err:            fmt.Errorf("market data %s: %w", operation, err),
 	}
 }
 

@@ -13,10 +13,11 @@ import (
 var plainDecimal = regexp.MustCompile(`^[+-]?[0-9]+(?:\.[0-9]+)?$`)
 
 type Analyzer struct {
-	reader   CandleReader
-	clock    Clock
-	timeout  time.Duration
-	observer CalculationObserver
+	reader      CandleReader
+	instruments InstrumentReader
+	clock       Clock
+	timeout     time.Duration
+	observer    CalculationObserver
 }
 
 func NewAnalyzer(reader CandleReader, clock Clock, timeout time.Duration) (*Analyzer, error) {
@@ -24,6 +25,10 @@ func NewAnalyzer(reader CandleReader, clock Clock, timeout time.Duration) (*Anal
 }
 
 func NewAnalyzerWithObserver(reader CandleReader, clock Clock, timeout time.Duration, observer CalculationObserver) (*Analyzer, error) {
+	return NewAnalyzerWithInstruments(reader, nil, clock, timeout, observer)
+}
+
+func NewAnalyzerWithInstruments(reader CandleReader, instruments InstrumentReader, clock Clock, timeout time.Duration, observer CalculationObserver) (*Analyzer, error) {
 	if reader == nil {
 		return nil, &Error{Kind: InvalidParameter, Field: "reader", Err: errors.New("reader is required")}
 	}
@@ -36,7 +41,7 @@ func NewAnalyzerWithObserver(reader CandleReader, clock Clock, timeout time.Dura
 		return nil, &Error{Kind: InvalidParameter, Field: "timeout", Err: errors.New("timeout must be positive")}
 	}
 
-	return &Analyzer{reader: reader, clock: clock, timeout: timeout, observer: observer}, nil
+	return &Analyzer{reader: reader, instruments: instruments, clock: clock, timeout: timeout, observer: observer}, nil
 }
 
 func (a *Analyzer) GetATR(ctx context.Context, request ATRRequest) (ATRResponse, error) {

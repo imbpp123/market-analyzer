@@ -35,7 +35,12 @@ The code follows inward dependencies:
 Domain and application packages do not depend on generated Protobuf messages,
 gRPC, HTTP, or observability packages. The application defines the `CandleReader`
 interface because it consumes candle data. The Market Data adapter implements
-that interface.
+that interface. The active-instrument operation also uses an application-owned
+`InstrumentReader` for catalog and 24-hour statistics snapshots.
+Catalog rows and candle selections use the same domain `Instrument` type.
+Matched rows use the domain `ActiveInstrument` type.
+The Market Data adapter maps 24-hour statistics to the domain `MarketStats` type.
+`ActiveInstrument` includes those statistics when a 24-hour threshold is used.
 
 ## Request flow
 
@@ -57,6 +62,10 @@ Each analysis request follows the same path:
 There is no data cache, result cache, request coalescing, retry loop, or rate
 limiter. The Market Data gRPC connection is shared, but all request data and
 calculation state are local to one request.
+
+`FindActiveInstruments` reads trading catalog rows, optionally joins the
+24-hour statistics snapshot by symbol, then calculates NATR for rows that pass
+the snapshot thresholds. A failure stops the whole request.
 
 ## Source fidelity
 

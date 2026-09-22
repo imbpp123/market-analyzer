@@ -10,7 +10,8 @@ Supported analyses:
 - Wilder ATR and normalized ATR (NATR);
 - local, percentage-reversal, and ATR-reversal extrema;
 - swing-structure trend classification;
-- horizontal support and resistance zones.
+- horizontal support and resistance zones;
+- active instrument discovery by 24-hour volume, trade count, and NATR.
 
 The public API is defined in
 [`market_analyzer.proto`](api/proto/marketanalyzer/v1/market_analyzer.proto).

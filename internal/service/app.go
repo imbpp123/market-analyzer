@@ -81,7 +81,7 @@ func New(config Config, logger *slog.Logger) (*App, error) {
 	}
 	metrics := observability.NewRegistry()
 	measuredReader := observability.NewReader(reader, metrics)
-	analyzer, err := application.NewAnalyzerWithObserver(measuredReader, systemClock{}, config.RequestTimeout, metrics)
+	analyzer, err := application.NewAnalyzerWithInstruments(measuredReader, reader, systemClock{}, config.RequestTimeout, metrics)
 	if err != nil {
 		return failAll(fmt.Errorf("create analyzer: %w", err))
 	}

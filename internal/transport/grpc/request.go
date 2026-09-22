@@ -28,6 +28,15 @@ func mapATRRequest(request *marketanalyzerv1.GetATRRequest) (application.ATRRequ
 	return application.ATRRequest{Selection: selection, Settings: settings}, nil
 }
 
+func mapFindActiveInstrumentsRequest(request *marketanalyzerv1.FindActiveInstrumentsRequest) (application.FindActiveInstrumentsRequest, error) {
+	if request == nil || request.Exchange == nil || request.Market == nil {
+		return application.FindActiveInstrumentsRequest{}, invalid("request", "exchange and market are required")
+	}
+	return application.FindActiveInstrumentsRequest{Exchange: *request.Exchange, Market: *request.Market,
+		MinVolume24h: clonePointer(request.MinVolume_24H), MinTrades24h: clonePointer(request.MinTrades_24H),
+		MinNATR: clonePointer(request.MinNatr), NATRPeriod: clonePointer(request.NatrPeriod)}, nil
+}
+
 func mapNATRRequest(request *marketanalyzerv1.GetNATRRequest) (application.NATRRequest, error) {
 	if request == nil {
 		return application.NATRRequest{}, invalid("request", "request is required")

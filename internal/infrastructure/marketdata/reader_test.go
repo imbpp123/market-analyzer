@@ -24,11 +24,96 @@ import (
 
 type fakeServer struct {
 	marketdatav1.UnimplementedMarketDataServiceServer
-	getKlines func(context.Context, *marketdatav1.GetKlinesRequest) (*marketdatav1.GetKlinesResponse, error)
+	getKlines       func(context.Context, *marketdatav1.GetKlinesRequest) (*marketdatav1.GetKlinesResponse, error)
+	listInstruments func(context.Context, *marketdatav1.ListInstrumentsRequest) (*marketdatav1.ListInstrumentsResponse, error)
+	listMarketStats func(context.Context, *marketdatav1.ListMarketStatsRequest) (*marketdatav1.ListMarketStatsResponse, error)
 }
 
 func (s *fakeServer) GetKlines(ctx context.Context, request *marketdatav1.GetKlinesRequest) (*marketdatav1.GetKlinesResponse, error) {
 	return s.getKlines(ctx, request)
+}
+
+func (s *fakeServer) ListInstruments(ctx context.Context, request *marketdatav1.ListInstrumentsRequest) (*marketdatav1.ListInstrumentsResponse, error) {
+	return s.listInstruments(ctx, request)
+}
+
+func (s *fakeServer) ListMarketStats(ctx context.Context, request *marketdatav1.ListMarketStatsRequest) (*marketdatav1.ListMarketStatsResponse, error) {
+	return s.listMarketStats(ctx, request)
+}
+
+func TestReaderMapsActiveInstrumentSources(t *testing.T) {
+	now := time.Date(2026, 1, 2, 12, 0, 0, 0, time.UTC)
+	count := int64(0)
+	reader := startReader(t, &fakeServer{
+		listInstruments: func(_ context.Context, request *marketdatav1.ListInstrumentsRequest) (*marketdatav1.ListInstrumentsResponse, error) {
+			assert.Equal(t, "binance", request.GetExchange())
+			assert.Equal(t, "spot", request.GetMarket())
+			assert.Equal(t, "trading", request.GetStatus())
+			return &marketdatav1.ListInstrumentsResponse{Instruments: []*marketdatav1.Instrument{{
+				Exchange: "binance", Market: "spot", Symbol: "BTCUSDT", BaseAsset: "BTC", QuoteAsset: "USDT", Status: "trading",
+			}}}, nil
+		},
+		listMarketStats: func(_ context.Context, request *marketdatav1.ListMarketStatsRequest) (*marketdatav1.ListMarketStatsResponse, error) {
+			assert.Equal(t, "24h", request.GetWindow())
+			return &marketdatav1.ListMarketStatsResponse{MarketStats: []*marketdatav1.MarketStats{{
+				Exchange: "binance", Market: "spot", Symbol: "BTCUSDT", Window: "24h", Volume: "100.00", TradeCount: &count, FetchedAt: timestamppb.New(now),
+			}}}, nil
+		},
+	}, DefaultMaxResponseBytes)
+
+	instruments, err := reader.ReadInstruments(t.Context(), "binance", "spot")
+	require.NoError(t, err)
+	stats, err := reader.ReadMarketStats(t.Context(), "binance", "spot")
+	require.NoError(t, err)
+
+	require.Len(t, instruments, 1)
+	assert.Equal(t, "BTCUSDT", instruments[0].Symbol)
+	assert.Equal(t, "BTC", instruments[0].BaseAsset)
+	assert.Equal(t, "USDT", instruments[0].QuoteAsset)
+	assert.Equal(t, domain.InstrumentStatusTrading, instruments[0].Status)
+	require.Len(t, stats, 1)
+	assert.Equal(t, "100.00", stats[0].Volume)
+	assert.Equal(t, int64(0), *stats[0].TradeCount)
+	assert.Equal(t, now, stats[0].FetchedAt)
+}
+
+func TestReaderRejectsMarketStatsWithWrongWindow(t *testing.T) {
+	cases := []struct {
+		name   string
+		window string
+	}{
+		{name: "wrong window", window: "1h"},
+		{name: "missing window", window: ""},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			reader := startReader(t, &fakeServer{
+				listMarketStats: func(_ context.Context, request *marketdatav1.ListMarketStatsRequest) (*marketdatav1.ListMarketStatsResponse, error) {
+					assert.Equal(t, "24h", request.GetWindow())
+					return &marketdatav1.ListMarketStatsResponse{
+						MarketStats: []*marketdatav1.MarketStats{
+							{
+								Exchange:  "binance",
+								Market:    "spot",
+								Symbol:    "BTCUSDT",
+								Window:    testCase.window,
+								Volume:    "100",
+								FetchedAt: timestamppb.New(time.Date(2026, 1, 2, 12, 0, 0, 0, time.UTC)),
+							},
+						},
+					}, nil
+				},
+			}, DefaultMaxResponseBytes)
+
+			stats, err := reader.ReadMarketStats(t.Context(), "binance", "spot")
+
+			var applicationError *application.Error
+			require.ErrorAs(t, err, &applicationError)
+			assert.Equal(t, application.InvalidMarketData, applicationError.Kind)
+			assert.Empty(t, stats)
+		})
+	}
 }
 
 func TestReaderMapsExactRequestAndResponse(t *testing.T) {

@@ -22,6 +22,24 @@ type CandleReader interface {
 	ReadCandles(context.Context, domain.Instrument, domain.Interval, domain.CandleRange) (SourceSeries, error)
 }
 
+type InstrumentReader interface {
+	ReadInstruments(context.Context, string, string) ([]domain.Instrument, error)
+	ReadMarketStats(context.Context, string, string) ([]domain.MarketStats, error)
+}
+
+type FindActiveInstrumentsRequest struct {
+	Exchange     string
+	Market       string
+	MinVolume24h *string
+	MinTrades24h *int64
+	MinNATR      *string
+	NATRPeriod   *uint32
+}
+
+type FindActiveInstrumentsResponse struct {
+	Instruments []domain.ActiveInstrument
+}
+
 type SourceSeries struct {
 	Instrument domain.Instrument
 	Interval   domain.Interval

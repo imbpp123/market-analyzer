@@ -208,8 +208,12 @@ func TestApplicationErrorCodeMapping(t *testing.T) {
 }
 
 func startClient(t *testing.T, reader application.CandleReader, maxResponseBytes, maxRequestBytes int) marketanalyzerv1.MarketAnalyzerServiceClient {
+	return startClientWithInstruments(t, reader, nil, maxResponseBytes, maxRequestBytes)
+}
+
+func startClientWithInstruments(t *testing.T, reader application.CandleReader, instruments application.InstrumentReader, maxResponseBytes, maxRequestBytes int) marketanalyzerv1.MarketAnalyzerServiceClient {
 	t.Helper()
-	analyzer, err := application.NewAnalyzer(reader, transportClock{now: time.Date(2026, 1, 2, 12, 30, 0, 0, time.UTC)}, time.Second)
+	analyzer, err := application.NewAnalyzerWithInstruments(reader, instruments, transportClock{now: time.Date(2026, 1, 2, 12, 30, 0, 0, time.UTC)}, time.Second, nil)
 	require.NoError(t, err)
 	service, err := NewServer(analyzer, maxResponseBytes)
 	require.NoError(t, err)

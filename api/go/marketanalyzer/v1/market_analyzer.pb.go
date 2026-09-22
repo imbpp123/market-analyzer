@@ -2121,6 +2121,250 @@ func (x *GetLevelsResponse) GetResult() *LevelsResult {
 	return nil
 }
 
+type FindActiveInstrumentsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Exchange      *string                `protobuf:"bytes,1,opt,name=exchange,proto3,oneof" json:"exchange,omitempty"`
+	Market        *string                `protobuf:"bytes,2,opt,name=market,proto3,oneof" json:"market,omitempty"`
+	MinVolume_24H *string                `protobuf:"bytes,3,opt,name=min_volume_24h,json=minVolume24h,proto3,oneof" json:"min_volume_24h,omitempty"`
+	MinTrades_24H *int64                 `protobuf:"varint,4,opt,name=min_trades_24h,json=minTrades24h,proto3,oneof" json:"min_trades_24h,omitempty"`
+	MinNatr       *string                `protobuf:"bytes,5,opt,name=min_natr,json=minNatr,proto3,oneof" json:"min_natr,omitempty"`
+	NatrPeriod    *uint32                `protobuf:"varint,6,opt,name=natr_period,json=natrPeriod,proto3,oneof" json:"natr_period,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FindActiveInstrumentsRequest) Reset() {
+	*x = FindActiveInstrumentsRequest{}
+	mi := &file_market_analyzer_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FindActiveInstrumentsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FindActiveInstrumentsRequest) ProtoMessage() {}
+
+func (x *FindActiveInstrumentsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_market_analyzer_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FindActiveInstrumentsRequest.ProtoReflect.Descriptor instead.
+func (*FindActiveInstrumentsRequest) Descriptor() ([]byte, []int) {
+	return file_market_analyzer_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *FindActiveInstrumentsRequest) GetExchange() string {
+	if x != nil && x.Exchange != nil {
+		return *x.Exchange
+	}
+	return ""
+}
+
+func (x *FindActiveInstrumentsRequest) GetMarket() string {
+	if x != nil && x.Market != nil {
+		return *x.Market
+	}
+	return ""
+}
+
+func (x *FindActiveInstrumentsRequest) GetMinVolume_24H() string {
+	if x != nil && x.MinVolume_24H != nil {
+		return *x.MinVolume_24H
+	}
+	return ""
+}
+
+func (x *FindActiveInstrumentsRequest) GetMinTrades_24H() int64 {
+	if x != nil && x.MinTrades_24H != nil {
+		return *x.MinTrades_24H
+	}
+	return 0
+}
+
+func (x *FindActiveInstrumentsRequest) GetMinNatr() string {
+	if x != nil && x.MinNatr != nil {
+		return *x.MinNatr
+	}
+	return ""
+}
+
+func (x *FindActiveInstrumentsRequest) GetNatrPeriod() uint32 {
+	if x != nil && x.NatrPeriod != nil {
+		return *x.NatrPeriod
+	}
+	return 0
+}
+
+type ActiveInstrument struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Exchange       string                 `protobuf:"bytes,1,opt,name=exchange,proto3" json:"exchange,omitempty"`
+	Market         string                 `protobuf:"bytes,2,opt,name=market,proto3" json:"market,omitempty"`
+	Symbol         string                 `protobuf:"bytes,3,opt,name=symbol,proto3" json:"symbol,omitempty"`
+	BaseAsset      string                 `protobuf:"bytes,4,opt,name=base_asset,json=baseAsset,proto3" json:"base_asset,omitempty"`
+	QuoteAsset     string                 `protobuf:"bytes,5,opt,name=quote_asset,json=quoteAsset,proto3" json:"quote_asset,omitempty"`
+	Volume_24H     *string                `protobuf:"bytes,6,opt,name=volume_24h,json=volume24h,proto3,oneof" json:"volume_24h,omitempty"`
+	Trades_24H     *int64                 `protobuf:"varint,7,opt,name=trades_24h,json=trades24h,proto3,oneof" json:"trades_24h,omitempty"`
+	Natr           *string                `protobuf:"bytes,8,opt,name=natr,proto3,oneof" json:"natr,omitempty"`
+	StatsFetchedAt *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=stats_fetched_at,json=statsFetchedAt,proto3" json:"stats_fetched_at,omitempty"`
+	NatrValueTime  *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=natr_value_time,json=natrValueTime,proto3" json:"natr_value_time,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ActiveInstrument) Reset() {
+	*x = ActiveInstrument{}
+	mi := &file_market_analyzer_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActiveInstrument) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActiveInstrument) ProtoMessage() {}
+
+func (x *ActiveInstrument) ProtoReflect() protoreflect.Message {
+	mi := &file_market_analyzer_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActiveInstrument.ProtoReflect.Descriptor instead.
+func (*ActiveInstrument) Descriptor() ([]byte, []int) {
+	return file_market_analyzer_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *ActiveInstrument) GetExchange() string {
+	if x != nil {
+		return x.Exchange
+	}
+	return ""
+}
+
+func (x *ActiveInstrument) GetMarket() string {
+	if x != nil {
+		return x.Market
+	}
+	return ""
+}
+
+func (x *ActiveInstrument) GetSymbol() string {
+	if x != nil {
+		return x.Symbol
+	}
+	return ""
+}
+
+func (x *ActiveInstrument) GetBaseAsset() string {
+	if x != nil {
+		return x.BaseAsset
+	}
+	return ""
+}
+
+func (x *ActiveInstrument) GetQuoteAsset() string {
+	if x != nil {
+		return x.QuoteAsset
+	}
+	return ""
+}
+
+func (x *ActiveInstrument) GetVolume_24H() string {
+	if x != nil && x.Volume_24H != nil {
+		return *x.Volume_24H
+	}
+	return ""
+}
+
+func (x *ActiveInstrument) GetTrades_24H() int64 {
+	if x != nil && x.Trades_24H != nil {
+		return *x.Trades_24H
+	}
+	return 0
+}
+
+func (x *ActiveInstrument) GetNatr() string {
+	if x != nil && x.Natr != nil {
+		return *x.Natr
+	}
+	return ""
+}
+
+func (x *ActiveInstrument) GetStatsFetchedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StatsFetchedAt
+	}
+	return nil
+}
+
+func (x *ActiveInstrument) GetNatrValueTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.NatrValueTime
+	}
+	return nil
+}
+
+type FindActiveInstrumentsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Instruments   []*ActiveInstrument    `protobuf:"bytes,1,rep,name=instruments,proto3" json:"instruments,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FindActiveInstrumentsResponse) Reset() {
+	*x = FindActiveInstrumentsResponse{}
+	mi := &file_market_analyzer_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FindActiveInstrumentsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FindActiveInstrumentsResponse) ProtoMessage() {}
+
+func (x *FindActiveInstrumentsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_market_analyzer_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FindActiveInstrumentsResponse.ProtoReflect.Descriptor instead.
+func (*FindActiveInstrumentsResponse) Descriptor() ([]byte, []int) {
+	return file_market_analyzer_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *FindActiveInstrumentsResponse) GetInstruments() []*ActiveInstrument {
+	if x != nil {
+		return x.Instruments
+	}
+	return nil
+}
+
 type ErrorDetail struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Reason         string                 `protobuf:"bytes,1,opt,name=reason,proto3" json:"reason,omitempty"`
@@ -2133,7 +2377,7 @@ type ErrorDetail struct {
 
 func (x *ErrorDetail) Reset() {
 	*x = ErrorDetail{}
-	mi := &file_market_analyzer_proto_msgTypes[28]
+	mi := &file_market_analyzer_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2145,7 +2389,7 @@ func (x *ErrorDetail) String() string {
 func (*ErrorDetail) ProtoMessage() {}
 
 func (x *ErrorDetail) ProtoReflect() protoreflect.Message {
-	mi := &file_market_analyzer_proto_msgTypes[28]
+	mi := &file_market_analyzer_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2158,7 +2402,7 @@ func (x *ErrorDetail) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ErrorDetail.ProtoReflect.Descriptor instead.
 func (*ErrorDetail) Descriptor() ([]byte, []int) {
-	return file_market_analyzer_proto_rawDescGZIP(), []int{28}
+	return file_market_analyzer_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ErrorDetail) GetReason() string {
@@ -2360,7 +2604,42 @@ const file_market_analyzer_proto_rawDesc = "" +
 	"\bmetadata\x18\x01 \x01(\v2\x1b.marketanalyzer.v1.MetadataR\bmetadata\x123\n" +
 	"\acandles\x18\x02 \x03(\v2\x19.marketanalyzer.v1.CandleR\acandles\x12<\n" +
 	"\bsettings\x18\x03 \x01(\v2 .marketanalyzer.v1.LevelSettingsR\bsettings\x127\n" +
-	"\x06result\x18\x04 \x01(\v2\x1f.marketanalyzer.v1.LevelsResultR\x06result\"\xc8\x01\n" +
+	"\x06result\x18\x04 \x01(\v2\x1f.marketanalyzer.v1.LevelsResultR\x06result\"\xd3\x02\n" +
+	"\x1cFindActiveInstrumentsRequest\x12\x1f\n" +
+	"\bexchange\x18\x01 \x01(\tH\x00R\bexchange\x88\x01\x01\x12\x1b\n" +
+	"\x06market\x18\x02 \x01(\tH\x01R\x06market\x88\x01\x01\x12)\n" +
+	"\x0emin_volume_24h\x18\x03 \x01(\tH\x02R\fminVolume24h\x88\x01\x01\x12)\n" +
+	"\x0emin_trades_24h\x18\x04 \x01(\x03H\x03R\fminTrades24h\x88\x01\x01\x12\x1e\n" +
+	"\bmin_natr\x18\x05 \x01(\tH\x04R\aminNatr\x88\x01\x01\x12$\n" +
+	"\vnatr_period\x18\x06 \x01(\rH\x05R\n" +
+	"natrPeriod\x88\x01\x01B\v\n" +
+	"\t_exchangeB\t\n" +
+	"\a_marketB\x11\n" +
+	"\x0f_min_volume_24hB\x11\n" +
+	"\x0f_min_trades_24hB\v\n" +
+	"\t_min_natrB\x0e\n" +
+	"\f_natr_period\"\xb0\x03\n" +
+	"\x10ActiveInstrument\x12\x1a\n" +
+	"\bexchange\x18\x01 \x01(\tR\bexchange\x12\x16\n" +
+	"\x06market\x18\x02 \x01(\tR\x06market\x12\x16\n" +
+	"\x06symbol\x18\x03 \x01(\tR\x06symbol\x12\x1d\n" +
+	"\n" +
+	"base_asset\x18\x04 \x01(\tR\tbaseAsset\x12\x1f\n" +
+	"\vquote_asset\x18\x05 \x01(\tR\n" +
+	"quoteAsset\x12\"\n" +
+	"\n" +
+	"volume_24h\x18\x06 \x01(\tH\x00R\tvolume24h\x88\x01\x01\x12\"\n" +
+	"\n" +
+	"trades_24h\x18\a \x01(\x03H\x01R\ttrades24h\x88\x01\x01\x12\x17\n" +
+	"\x04natr\x18\b \x01(\tH\x02R\x04natr\x88\x01\x01\x12D\n" +
+	"\x10stats_fetched_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\x0estatsFetchedAt\x12B\n" +
+	"\x0fnatr_value_time\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\rnatrValueTimeB\r\n" +
+	"\v_volume_24hB\r\n" +
+	"\v_trades_24hB\a\n" +
+	"\x05_natr\"f\n" +
+	"\x1dFindActiveInstrumentsResponse\x12E\n" +
+	"\vinstruments\x18\x01 \x03(\v2#.marketanalyzer.v1.ActiveInstrumentR\vinstruments\"\xc8\x01\n" +
 	"\vErrorDetail\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\x12\x19\n" +
 	"\x05field\x18\x02 \x01(\tH\x00R\x05field\x88\x01\x01\x12(\n" +
@@ -2388,14 +2667,15 @@ const file_market_analyzer_proto_rawDesc = "" +
 	"\x15ZONE_ROLE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11ZONE_ROLE_SUPPORT\x10\x01\x12\x18\n" +
 	"\x14ZONE_ROLE_RESISTANCE\x10\x02\x12\x16\n" +
-	"\x12ZONE_ROLE_AT_PRICE\x10\x032\xc0\x03\n" +
+	"\x12ZONE_ROLE_AT_PRICE\x10\x032\xbc\x04\n" +
 	"\x15MarketAnalyzerService\x12M\n" +
 	"\x06GetATR\x12 .marketanalyzer.v1.GetATRRequest\x1a!.marketanalyzer.v1.GetATRResponse\x12P\n" +
 	"\aGetNATR\x12!.marketanalyzer.v1.GetNATRRequest\x1a\".marketanalyzer.v1.GetNATRResponse\x12Y\n" +
 	"\n" +
 	"GetExtrema\x12$.marketanalyzer.v1.GetExtremaRequest\x1a%.marketanalyzer.v1.GetExtremaResponse\x12S\n" +
 	"\bGetTrend\x12\".marketanalyzer.v1.GetTrendRequest\x1a#.marketanalyzer.v1.GetTrendResponse\x12V\n" +
-	"\tGetLevels\x12#.marketanalyzer.v1.GetLevelsRequest\x1a$.marketanalyzer.v1.GetLevelsResponseBOZMgithub.com/imbpp123/market-analyzer/api/go/marketanalyzer/v1;marketanalyzerv1b\x06proto3"
+	"\tGetLevels\x12#.marketanalyzer.v1.GetLevelsRequest\x1a$.marketanalyzer.v1.GetLevelsResponse\x12z\n" +
+	"\x15FindActiveInstruments\x12/.marketanalyzer.v1.FindActiveInstrumentsRequest\x1a0.marketanalyzer.v1.FindActiveInstrumentsResponseBOZMgithub.com/imbpp123/market-analyzer/api/go/marketanalyzer/v1;marketanalyzerv1b\x06proto3"
 
 var (
 	file_market_analyzer_proto_rawDescOnce sync.Once
@@ -2410,70 +2690,73 @@ func file_market_analyzer_proto_rawDescGZIP() []byte {
 }
 
 var file_market_analyzer_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_market_analyzer_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
+var file_market_analyzer_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
 var file_market_analyzer_proto_goTypes = []any{
-	(PriceSource)(0),                // 0: marketanalyzer.v1.PriceSource
-	(ExtremumKind)(0),               // 1: marketanalyzer.v1.ExtremumKind
-	(TrendState)(0),                 // 2: marketanalyzer.v1.TrendState
-	(ZoneRole)(0),                   // 3: marketanalyzer.v1.ZoneRole
-	(*Selection)(nil),               // 4: marketanalyzer.v1.Selection
-	(*ATRSettings)(nil),             // 5: marketanalyzer.v1.ATRSettings
-	(*LocalExtremaSettings)(nil),    // 6: marketanalyzer.v1.LocalExtremaSettings
-	(*PercentReversalSettings)(nil), // 7: marketanalyzer.v1.PercentReversalSettings
-	(*ATRReversalSettings)(nil),     // 8: marketanalyzer.v1.ATRReversalSettings
-	(*ExtremaSettings)(nil),         // 9: marketanalyzer.v1.ExtremaSettings
-	(*TrendSettings)(nil),           // 10: marketanalyzer.v1.TrendSettings
-	(*LevelSettings)(nil),           // 11: marketanalyzer.v1.LevelSettings
-	(*Candle)(nil),                  // 12: marketanalyzer.v1.Candle
-	(*Metadata)(nil),                // 13: marketanalyzer.v1.Metadata
-	(*ATRResult)(nil),               // 14: marketanalyzer.v1.ATRResult
-	(*NATRResult)(nil),              // 15: marketanalyzer.v1.NATRResult
-	(*ReversalEvidence)(nil),        // 16: marketanalyzer.v1.ReversalEvidence
-	(*Extremum)(nil),                // 17: marketanalyzer.v1.Extremum
-	(*ExtremaResult)(nil),           // 18: marketanalyzer.v1.ExtremaResult
-	(*TrendResult)(nil),             // 19: marketanalyzer.v1.TrendResult
-	(*PriceZone)(nil),               // 20: marketanalyzer.v1.PriceZone
-	(*LevelsResult)(nil),            // 21: marketanalyzer.v1.LevelsResult
-	(*GetATRRequest)(nil),           // 22: marketanalyzer.v1.GetATRRequest
-	(*GetATRResponse)(nil),          // 23: marketanalyzer.v1.GetATRResponse
-	(*GetNATRRequest)(nil),          // 24: marketanalyzer.v1.GetNATRRequest
-	(*GetNATRResponse)(nil),         // 25: marketanalyzer.v1.GetNATRResponse
-	(*GetExtremaRequest)(nil),       // 26: marketanalyzer.v1.GetExtremaRequest
-	(*GetExtremaResponse)(nil),      // 27: marketanalyzer.v1.GetExtremaResponse
-	(*GetTrendRequest)(nil),         // 28: marketanalyzer.v1.GetTrendRequest
-	(*GetTrendResponse)(nil),        // 29: marketanalyzer.v1.GetTrendResponse
-	(*GetLevelsRequest)(nil),        // 30: marketanalyzer.v1.GetLevelsRequest
-	(*GetLevelsResponse)(nil),       // 31: marketanalyzer.v1.GetLevelsResponse
-	(*ErrorDetail)(nil),             // 32: marketanalyzer.v1.ErrorDetail
-	(*timestamppb.Timestamp)(nil),   // 33: google.protobuf.Timestamp
+	(PriceSource)(0),                      // 0: marketanalyzer.v1.PriceSource
+	(ExtremumKind)(0),                     // 1: marketanalyzer.v1.ExtremumKind
+	(TrendState)(0),                       // 2: marketanalyzer.v1.TrendState
+	(ZoneRole)(0),                         // 3: marketanalyzer.v1.ZoneRole
+	(*Selection)(nil),                     // 4: marketanalyzer.v1.Selection
+	(*ATRSettings)(nil),                   // 5: marketanalyzer.v1.ATRSettings
+	(*LocalExtremaSettings)(nil),          // 6: marketanalyzer.v1.LocalExtremaSettings
+	(*PercentReversalSettings)(nil),       // 7: marketanalyzer.v1.PercentReversalSettings
+	(*ATRReversalSettings)(nil),           // 8: marketanalyzer.v1.ATRReversalSettings
+	(*ExtremaSettings)(nil),               // 9: marketanalyzer.v1.ExtremaSettings
+	(*TrendSettings)(nil),                 // 10: marketanalyzer.v1.TrendSettings
+	(*LevelSettings)(nil),                 // 11: marketanalyzer.v1.LevelSettings
+	(*Candle)(nil),                        // 12: marketanalyzer.v1.Candle
+	(*Metadata)(nil),                      // 13: marketanalyzer.v1.Metadata
+	(*ATRResult)(nil),                     // 14: marketanalyzer.v1.ATRResult
+	(*NATRResult)(nil),                    // 15: marketanalyzer.v1.NATRResult
+	(*ReversalEvidence)(nil),              // 16: marketanalyzer.v1.ReversalEvidence
+	(*Extremum)(nil),                      // 17: marketanalyzer.v1.Extremum
+	(*ExtremaResult)(nil),                 // 18: marketanalyzer.v1.ExtremaResult
+	(*TrendResult)(nil),                   // 19: marketanalyzer.v1.TrendResult
+	(*PriceZone)(nil),                     // 20: marketanalyzer.v1.PriceZone
+	(*LevelsResult)(nil),                  // 21: marketanalyzer.v1.LevelsResult
+	(*GetATRRequest)(nil),                 // 22: marketanalyzer.v1.GetATRRequest
+	(*GetATRResponse)(nil),                // 23: marketanalyzer.v1.GetATRResponse
+	(*GetNATRRequest)(nil),                // 24: marketanalyzer.v1.GetNATRRequest
+	(*GetNATRResponse)(nil),               // 25: marketanalyzer.v1.GetNATRResponse
+	(*GetExtremaRequest)(nil),             // 26: marketanalyzer.v1.GetExtremaRequest
+	(*GetExtremaResponse)(nil),            // 27: marketanalyzer.v1.GetExtremaResponse
+	(*GetTrendRequest)(nil),               // 28: marketanalyzer.v1.GetTrendRequest
+	(*GetTrendResponse)(nil),              // 29: marketanalyzer.v1.GetTrendResponse
+	(*GetLevelsRequest)(nil),              // 30: marketanalyzer.v1.GetLevelsRequest
+	(*GetLevelsResponse)(nil),             // 31: marketanalyzer.v1.GetLevelsResponse
+	(*FindActiveInstrumentsRequest)(nil),  // 32: marketanalyzer.v1.FindActiveInstrumentsRequest
+	(*ActiveInstrument)(nil),              // 33: marketanalyzer.v1.ActiveInstrument
+	(*FindActiveInstrumentsResponse)(nil), // 34: marketanalyzer.v1.FindActiveInstrumentsResponse
+	(*ErrorDetail)(nil),                   // 35: marketanalyzer.v1.ErrorDetail
+	(*timestamppb.Timestamp)(nil),         // 36: google.protobuf.Timestamp
 }
 var file_market_analyzer_proto_depIdxs = []int32{
-	33, // 0: marketanalyzer.v1.Selection.to:type_name -> google.protobuf.Timestamp
+	36, // 0: marketanalyzer.v1.Selection.to:type_name -> google.protobuf.Timestamp
 	0,  // 1: marketanalyzer.v1.ExtremaSettings.price_source:type_name -> marketanalyzer.v1.PriceSource
 	6,  // 2: marketanalyzer.v1.ExtremaSettings.local_extrema:type_name -> marketanalyzer.v1.LocalExtremaSettings
 	7,  // 3: marketanalyzer.v1.ExtremaSettings.reversal_percent:type_name -> marketanalyzer.v1.PercentReversalSettings
 	8,  // 4: marketanalyzer.v1.ExtremaSettings.reversal_atr:type_name -> marketanalyzer.v1.ATRReversalSettings
 	9,  // 5: marketanalyzer.v1.TrendSettings.extrema:type_name -> marketanalyzer.v1.ExtremaSettings
 	9,  // 6: marketanalyzer.v1.LevelSettings.extrema:type_name -> marketanalyzer.v1.ExtremaSettings
-	33, // 7: marketanalyzer.v1.Candle.open_time:type_name -> google.protobuf.Timestamp
-	33, // 8: marketanalyzer.v1.Candle.close_time:type_name -> google.protobuf.Timestamp
-	33, // 9: marketanalyzer.v1.Candle.fetched_at:type_name -> google.protobuf.Timestamp
+	36, // 7: marketanalyzer.v1.Candle.open_time:type_name -> google.protobuf.Timestamp
+	36, // 8: marketanalyzer.v1.Candle.close_time:type_name -> google.protobuf.Timestamp
+	36, // 9: marketanalyzer.v1.Candle.fetched_at:type_name -> google.protobuf.Timestamp
 	4,  // 10: marketanalyzer.v1.Metadata.selection:type_name -> marketanalyzer.v1.Selection
-	33, // 11: marketanalyzer.v1.Metadata.evaluated_at:type_name -> google.protobuf.Timestamp
-	33, // 12: marketanalyzer.v1.Metadata.source_from:type_name -> google.protobuf.Timestamp
-	33, // 13: marketanalyzer.v1.Metadata.source_to:type_name -> google.protobuf.Timestamp
-	33, // 14: marketanalyzer.v1.ATRResult.value_time:type_name -> google.protobuf.Timestamp
-	33, // 15: marketanalyzer.v1.NATRResult.value_time:type_name -> google.protobuf.Timestamp
+	36, // 11: marketanalyzer.v1.Metadata.evaluated_at:type_name -> google.protobuf.Timestamp
+	36, // 12: marketanalyzer.v1.Metadata.source_from:type_name -> google.protobuf.Timestamp
+	36, // 13: marketanalyzer.v1.Metadata.source_to:type_name -> google.protobuf.Timestamp
+	36, // 14: marketanalyzer.v1.ATRResult.value_time:type_name -> google.protobuf.Timestamp
+	36, // 15: marketanalyzer.v1.NATRResult.value_time:type_name -> google.protobuf.Timestamp
 	1,  // 16: marketanalyzer.v1.Extremum.kind:type_name -> marketanalyzer.v1.ExtremumKind
-	33, // 17: marketanalyzer.v1.Extremum.time:type_name -> google.protobuf.Timestamp
-	33, // 18: marketanalyzer.v1.Extremum.confirmation_time:type_name -> google.protobuf.Timestamp
+	36, // 17: marketanalyzer.v1.Extremum.time:type_name -> google.protobuf.Timestamp
+	36, // 18: marketanalyzer.v1.Extremum.confirmation_time:type_name -> google.protobuf.Timestamp
 	16, // 19: marketanalyzer.v1.Extremum.reversal:type_name -> marketanalyzer.v1.ReversalEvidence
 	17, // 20: marketanalyzer.v1.ExtremaResult.points:type_name -> marketanalyzer.v1.Extremum
 	2,  // 21: marketanalyzer.v1.TrendResult.state:type_name -> marketanalyzer.v1.TrendState
 	18, // 22: marketanalyzer.v1.TrendResult.extrema:type_name -> marketanalyzer.v1.ExtremaResult
 	3,  // 23: marketanalyzer.v1.PriceZone.role:type_name -> marketanalyzer.v1.ZoneRole
-	33, // 24: marketanalyzer.v1.PriceZone.first_touch_time:type_name -> google.protobuf.Timestamp
-	33, // 25: marketanalyzer.v1.PriceZone.last_touch_time:type_name -> google.protobuf.Timestamp
+	36, // 24: marketanalyzer.v1.PriceZone.first_touch_time:type_name -> google.protobuf.Timestamp
+	36, // 25: marketanalyzer.v1.PriceZone.last_touch_time:type_name -> google.protobuf.Timestamp
 	20, // 26: marketanalyzer.v1.LevelsResult.zones:type_name -> marketanalyzer.v1.PriceZone
 	18, // 27: marketanalyzer.v1.LevelsResult.extrema:type_name -> marketanalyzer.v1.ExtremaResult
 	14, // 28: marketanalyzer.v1.LevelsResult.atr:type_name -> marketanalyzer.v1.ATRResult
@@ -2507,21 +2790,26 @@ var file_market_analyzer_proto_depIdxs = []int32{
 	12, // 56: marketanalyzer.v1.GetLevelsResponse.candles:type_name -> marketanalyzer.v1.Candle
 	11, // 57: marketanalyzer.v1.GetLevelsResponse.settings:type_name -> marketanalyzer.v1.LevelSettings
 	21, // 58: marketanalyzer.v1.GetLevelsResponse.result:type_name -> marketanalyzer.v1.LevelsResult
-	22, // 59: marketanalyzer.v1.MarketAnalyzerService.GetATR:input_type -> marketanalyzer.v1.GetATRRequest
-	24, // 60: marketanalyzer.v1.MarketAnalyzerService.GetNATR:input_type -> marketanalyzer.v1.GetNATRRequest
-	26, // 61: marketanalyzer.v1.MarketAnalyzerService.GetExtrema:input_type -> marketanalyzer.v1.GetExtremaRequest
-	28, // 62: marketanalyzer.v1.MarketAnalyzerService.GetTrend:input_type -> marketanalyzer.v1.GetTrendRequest
-	30, // 63: marketanalyzer.v1.MarketAnalyzerService.GetLevels:input_type -> marketanalyzer.v1.GetLevelsRequest
-	23, // 64: marketanalyzer.v1.MarketAnalyzerService.GetATR:output_type -> marketanalyzer.v1.GetATRResponse
-	25, // 65: marketanalyzer.v1.MarketAnalyzerService.GetNATR:output_type -> marketanalyzer.v1.GetNATRResponse
-	27, // 66: marketanalyzer.v1.MarketAnalyzerService.GetExtrema:output_type -> marketanalyzer.v1.GetExtremaResponse
-	29, // 67: marketanalyzer.v1.MarketAnalyzerService.GetTrend:output_type -> marketanalyzer.v1.GetTrendResponse
-	31, // 68: marketanalyzer.v1.MarketAnalyzerService.GetLevels:output_type -> marketanalyzer.v1.GetLevelsResponse
-	64, // [64:69] is the sub-list for method output_type
-	59, // [59:64] is the sub-list for method input_type
-	59, // [59:59] is the sub-list for extension type_name
-	59, // [59:59] is the sub-list for extension extendee
-	0,  // [0:59] is the sub-list for field type_name
+	36, // 59: marketanalyzer.v1.ActiveInstrument.stats_fetched_at:type_name -> google.protobuf.Timestamp
+	36, // 60: marketanalyzer.v1.ActiveInstrument.natr_value_time:type_name -> google.protobuf.Timestamp
+	33, // 61: marketanalyzer.v1.FindActiveInstrumentsResponse.instruments:type_name -> marketanalyzer.v1.ActiveInstrument
+	22, // 62: marketanalyzer.v1.MarketAnalyzerService.GetATR:input_type -> marketanalyzer.v1.GetATRRequest
+	24, // 63: marketanalyzer.v1.MarketAnalyzerService.GetNATR:input_type -> marketanalyzer.v1.GetNATRRequest
+	26, // 64: marketanalyzer.v1.MarketAnalyzerService.GetExtrema:input_type -> marketanalyzer.v1.GetExtremaRequest
+	28, // 65: marketanalyzer.v1.MarketAnalyzerService.GetTrend:input_type -> marketanalyzer.v1.GetTrendRequest
+	30, // 66: marketanalyzer.v1.MarketAnalyzerService.GetLevels:input_type -> marketanalyzer.v1.GetLevelsRequest
+	32, // 67: marketanalyzer.v1.MarketAnalyzerService.FindActiveInstruments:input_type -> marketanalyzer.v1.FindActiveInstrumentsRequest
+	23, // 68: marketanalyzer.v1.MarketAnalyzerService.GetATR:output_type -> marketanalyzer.v1.GetATRResponse
+	25, // 69: marketanalyzer.v1.MarketAnalyzerService.GetNATR:output_type -> marketanalyzer.v1.GetNATRResponse
+	27, // 70: marketanalyzer.v1.MarketAnalyzerService.GetExtrema:output_type -> marketanalyzer.v1.GetExtremaResponse
+	29, // 71: marketanalyzer.v1.MarketAnalyzerService.GetTrend:output_type -> marketanalyzer.v1.GetTrendResponse
+	31, // 72: marketanalyzer.v1.MarketAnalyzerService.GetLevels:output_type -> marketanalyzer.v1.GetLevelsResponse
+	34, // 73: marketanalyzer.v1.MarketAnalyzerService.FindActiveInstruments:output_type -> marketanalyzer.v1.FindActiveInstrumentsResponse
+	68, // [68:74] is the sub-list for method output_type
+	62, // [62:68] is the sub-list for method input_type
+	62, // [62:62] is the sub-list for extension type_name
+	62, // [62:62] is the sub-list for extension extendee
+	0,  // [0:62] is the sub-list for field type_name
 }
 
 func init() { file_market_analyzer_proto_init() }
@@ -2544,13 +2832,15 @@ func file_market_analyzer_proto_init() {
 	file_market_analyzer_proto_msgTypes[8].OneofWrappers = []any{}
 	file_market_analyzer_proto_msgTypes[12].OneofWrappers = []any{}
 	file_market_analyzer_proto_msgTypes[28].OneofWrappers = []any{}
+	file_market_analyzer_proto_msgTypes[29].OneofWrappers = []any{}
+	file_market_analyzer_proto_msgTypes[31].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_market_analyzer_proto_rawDesc), len(file_market_analyzer_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   29,
+			NumMessages:   32,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

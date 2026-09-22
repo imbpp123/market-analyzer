@@ -12,6 +12,7 @@ service MarketAnalyzerService {
   rpc GetExtrema(GetExtremaRequest) returns (GetExtremaResponse);
   rpc GetTrend(GetTrendRequest) returns (GetTrendResponse);
   rpc GetLevels(GetLevelsRequest) returns (GetLevelsResponse);
+  rpc FindActiveInstruments(FindActiveInstrumentsRequest) returns (FindActiveInstrumentsResponse);
 }
 
 enum PriceSource {
@@ -231,6 +232,32 @@ message GetLevelsResponse {
   repeated Candle candles = 2;
   LevelSettings settings = 3;
   LevelsResult result = 4;
+}
+
+message FindActiveInstrumentsRequest {
+  optional string exchange = 1;
+  optional string market = 2;
+  optional string min_volume_24h = 3;
+  optional int64 min_trades_24h = 4;
+  optional string min_natr = 5;
+  optional uint32 natr_period = 6;
+}
+
+message ActiveInstrument {
+  string exchange = 1;
+  string market = 2;
+  string symbol = 3;
+  string base_asset = 4;
+  string quote_asset = 5;
+  optional string volume_24h = 6;
+  optional int64 trades_24h = 7;
+  optional string natr = 8;
+  google.protobuf.Timestamp stats_fetched_at = 9;
+  google.protobuf.Timestamp natr_value_time = 10;
+}
+
+message FindActiveInstrumentsResponse {
+  repeated ActiveInstrument instruments = 1;
 }
 
 message ErrorDetail {

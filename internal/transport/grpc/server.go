@@ -124,6 +124,18 @@ func (s *Server) GetLevels(ctx context.Context, request *marketanalyzerv1.GetLev
 	return checkSize(response, s.maxResponseBytes)
 }
 
+func (s *Server) FindActiveInstruments(ctx context.Context, request *marketanalyzerv1.FindActiveInstrumentsRequest) (*marketanalyzerv1.FindActiveInstrumentsResponse, error) {
+	input, err := mapFindActiveInstrumentsRequest(request)
+	if err != nil {
+		return nil, publicError(err)
+	}
+	result, err := s.analyzer.FindActiveInstruments(ctx, input)
+	if err != nil {
+		return nil, publicError(err)
+	}
+	return checkSize(mapFindActiveInstrumentsResponse(result), s.maxResponseBytes)
+}
+
 func checkSize[T proto.Message](response T, limit int) (T, error) {
 	if proto.Size(response) > limit {
 		var zero T

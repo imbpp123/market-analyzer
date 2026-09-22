@@ -19,6 +19,10 @@ type fakeAnalyzerClient struct {
 	atrErr error
 }
 
+func (f *fakeAnalyzerClient) FindActiveInstruments(_ context.Context, _ *marketanalyzerv1.FindActiveInstrumentsRequest, _ ...grpcgo.CallOption) (*marketanalyzerv1.FindActiveInstrumentsResponse, error) {
+	return &marketanalyzerv1.FindActiveInstrumentsResponse{}, nil
+}
+
 func (f *fakeAnalyzerClient) GetATR(_ context.Context, request *marketanalyzerv1.GetATRRequest, _ ...grpcgo.CallOption) (*marketanalyzerv1.GetATRResponse, error) {
 	f.calls.Add(1)
 	if f.atrErr != nil {
